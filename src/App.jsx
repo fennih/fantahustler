@@ -811,7 +811,7 @@ function App() {
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-3">
-              <h1 className="text-2xl font-bold text-gray-900">ASTA FANTACALCIO</h1>
+              <h1 className="text-2xl font-bold text-gray-900">FANTAHUSTLER</h1>
               {/* Scudetto Team Eno */}
               <div className="flex items-center bg-white border-2 border-red-500 px-3 py-1 rounded-lg shadow-lg">
                 <svg 
