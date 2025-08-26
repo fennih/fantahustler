@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Search, Upload, Download, Filter, Users, Target, Eye } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import PlayerStatsModal from './components/PlayerStatsModal.jsx';
+import TacticalFormation from './components/TacticalFormation.jsx';
 
 // Sistema ruoli MANTRA (completo dal file Excel)
 const RUOLI_MANTRA = {
@@ -134,50 +135,134 @@ const MODULI_TARGET_DEFAULT = [
   '4-3-3', '4-3-1-2', '4-4-2', '4-1-4-1', '4-4-1-1', '4-2-3-1'
 ];
 
-// Configurazione moduli CORRETTA basata sui diagrammi MANTRA 2025/2026
+// Configurazione moduli CORRETTA con ruoli intercambiabili basata sui diagrammi MANTRA 2025/2026
 const CONFIGURAZIONE_MODULI = {
   '3-4-3': {
-    ruoli: { Por: 1, Dc: 2, B: 1, E: 2, M: 1, C: 1, W: 2, A: 2, Pc: 1 },
+    // P, DC-DC-DC/B, E-M/C-C-E, W/A-W/A-A/PC
+    ruoli: { Por: 1, Dc: 3, B: 1, E: 2, M: 1, C: 2, W: 2, A: 2, Pc: 1 },
+    posizioni: [
+      { id: 'P1', ruoli: ['Por'], x: 50, y: 8 },
+      { id: 'DC1', ruoli: ['Dc'], x: 30, y: 25 }, { id: 'DC2', ruoli: ['Dc'], x: 50, y: 25 }, { id: 'DCB1', ruoli: ['Dc', 'B'], x: 70, y: 25 },
+      { id: 'E1', ruoli: ['E'], x: 15, y: 45 }, { id: 'MC1', ruoli: ['M', 'C'], x: 35, y: 50 }, { id: 'C1', ruoli: ['C'], x: 65, y: 50 }, { id: 'E2', ruoli: ['E'], x: 85, y: 45 },
+      { id: 'WA1', ruoli: ['W', 'A'], x: 25, y: 75 }, { id: 'WA2', ruoli: ['W', 'A'], x: 75, y: 75 }, { id: 'APC1', ruoli: ['A', 'Pc'], x: 50, y: 85 }
+    ],
     linee: { portiere: 1, difesa: 3, centrocampo: 4, trequarti: 0, attacco: 3 }
   },
   '3-4-1-2': {
-    ruoli: { Por: 1, Dc: 2, B: 1, E: 2, M: 1, C: 1, T: 1, A: 1, Pc: 1 },
+    // P, DC-DC-DC/B, E-M/C-C-E, T, A/PC-A/PC
+    ruoli: { Por: 1, Dc: 3, B: 1, E: 2, M: 1, C: 2, T: 1, A: 1, Pc: 1 },
+    posizioni: [
+      { id: 'P1', ruoli: ['Por'], x: 50, y: 8 },
+      { id: 'DC1', ruoli: ['Dc'], x: 30, y: 25 }, { id: 'DC2', ruoli: ['Dc'], x: 50, y: 25 }, { id: 'DCB1', ruoli: ['Dc', 'B'], x: 70, y: 25 },
+      { id: 'E1', ruoli: ['E'], x: 15, y: 45 }, { id: 'MC1', ruoli: ['M', 'C'], x: 35, y: 50 }, { id: 'C1', ruoli: ['C'], x: 65, y: 50 }, { id: 'E2', ruoli: ['E'], x: 85, y: 45 },
+      { id: 'T1', ruoli: ['T'], x: 50, y: 65 },
+      { id: 'APC1', ruoli: ['A', 'Pc'], x: 35, y: 85 }, { id: 'APC2', ruoli: ['A', 'Pc'], x: 65, y: 85 }
+    ],
     linee: { portiere: 1, difesa: 3, centrocampo: 4, trequarti: 1, attacco: 2 }
   },
   '3-4-2-1': {
-    ruoli: { Por: 1, Dc: 2, B: 1, E: 2, M: 2, C: 1, W: 1, T: 1, Pc: 1 },
+    // P, DC-DC-DC/B, M-M/C-E-E/W, T-T/A, A/PC
+    ruoli: { Por: 1, Dc: 3, B: 1, M: 2, E: 2, C: 1, W: 1, T: 2, A: 1, Pc: 1 },
+    posizioni: [
+      { id: 'P1', ruoli: ['Por'], x: 50, y: 8 },
+      { id: 'DC1', ruoli: ['Dc'], x: 30, y: 25 }, { id: 'DC2', ruoli: ['Dc'], x: 50, y: 25 }, { id: 'DCB1', ruoli: ['Dc', 'B'], x: 70, y: 25 },
+      { id: 'E1', ruoli: ['E'], x: 15, y: 45 }, { id: 'MC1', ruoli: ['M', 'C'], x: 35, y: 50 }, { id: 'M1', ruoli: ['M'], x: 65, y: 50 }, { id: 'EW1', ruoli: ['E', 'W'], x: 85, y: 45 },
+      { id: 'T1', ruoli: ['T'], x: 35, y: 65 }, { id: 'TA1', ruoli: ['T', 'A'], x: 65, y: 65 },
+      { id: 'APC1', ruoli: ['A', 'Pc'], x: 50, y: 85 }
+    ],
     linee: { portiere: 1, difesa: 3, centrocampo: 4, trequarti: 2, attacco: 1 }
   },
   '3-5-2': {
-    ruoli: { Por: 1, Dc: 2, B: 1, E: 2, M: 2, C: 1, A: 1, Pc: 1 },
-    linee: { portiere: 1, difesa: 3, centrocampo: 5, trequarti: 0, attacco: 2 }
+    // P, DC-DC-DC/B, M-M/C-C-E/W, A/PC-A/PC
+    ruoli: { Por: 1, Dc: 3, B: 1, M: 2, C: 2, E: 1, W: 1, A: 1, Pc: 1 },
+    posizioni: [
+      { id: 'P1', ruoli: ['Por'], x: 50, y: 8 },
+      { id: 'DC1', ruoli: ['Dc'], x: 30, y: 25 }, { id: 'DC2', ruoli: ['Dc'], x: 50, y: 25 }, { id: 'DCB1', ruoli: ['Dc', 'B'], x: 70, y: 25 },
+      { id: 'M1', ruoli: ['M'], x: 20, y: 45 }, { id: 'MC1', ruoli: ['M', 'C'], x: 35, y: 50 }, { id: 'C1', ruoli: ['C'], x: 65, y: 50 }, { id: 'EW1', ruoli: ['E', 'W'], x: 80, y: 45 },
+      { id: 'APC1', ruoli: ['A', 'Pc'], x: 35, y: 75 }, { id: 'APC2', ruoli: ['A', 'Pc'], x: 65, y: 75 }
+    ],
+    linee: { portiere: 1, difesa: 3, centrocampo: 4, trequarti: 0, attacco: 2 }
   },
   '3-5-1-1': {
-    ruoli: { Por: 1, Dc: 2, B: 1, E: 2, M: 2, C: 1, T: 1, A: 1 },
+    // P, DC-DC-DC/B, M-M-C-E/W-E/W, T/A, A/PC
+    ruoli: { Por: 1, Dc: 3, B: 1, M: 2, C: 1, E: 2, W: 2, T: 1, A: 2, Pc: 1 },
+    posizioni: [
+      { id: 'P1', ruoli: ['Por'], x: 50, y: 8 },
+      { id: 'DC1', ruoli: ['Dc'], x: 30, y: 25 }, { id: 'DC2', ruoli: ['Dc'], x: 50, y: 25 }, { id: 'DCB1', ruoli: ['Dc', 'B'], x: 70, y: 25 },
+      { id: 'M1', ruoli: ['M'], x: 25, y: 45 }, { id: 'M2', ruoli: ['M'], x: 50, y: 50 }, { id: 'C1', ruoli: ['C'], x: 75, y: 50 }, { id: 'EW1', ruoli: ['E', 'W'], x: 15, y: 55 }, { id: 'EW2', ruoli: ['E', 'W'], x: 85, y: 55 },
+      { id: 'TA1', ruoli: ['T', 'A'], x: 35, y: 75 },
+      { id: 'APC1', ruoli: ['A', 'Pc'], x: 65, y: 85 }
+    ],
     linee: { portiere: 1, difesa: 3, centrocampo: 5, trequarti: 1, attacco: 1 }
   },
   '4-3-3': {
-    ruoli: { Por: 1, Dd: 1, Dc: 2, Ds: 1, M: 2, C: 1, W: 2, A: 2, Pc: 1 },
+    // P, DD-DC-DC-DS, W/C-M-C, W/A-W/A-A/PC
+    ruoli: { Por: 1, Dd: 1, Dc: 2, Ds: 1, M: 1, C: 2, W: 2, A: 2, Pc: 1 },
+    posizioni: [
+      { id: 'P1', ruoli: ['Por'], x: 50, y: 8 },
+      { id: 'DD1', ruoli: ['Dd'], x: 80, y: 25 }, { id: 'DC1', ruoli: ['Dc'], x: 60, y: 25 }, { id: 'DC2', ruoli: ['Dc'], x: 40, y: 25 }, { id: 'DS1', ruoli: ['Ds'], x: 20, y: 25 },
+      { id: 'WC1', ruoli: ['W', 'C'], x: 25, y: 50 }, { id: 'M1', ruoli: ['M'], x: 50, y: 55 }, { id: 'C1', ruoli: ['C'], x: 75, y: 50 },
+      { id: 'WA1', ruoli: ['W', 'A'], x: 25, y: 75 }, { id: 'WA2', ruoli: ['W', 'A'], x: 75, y: 75 }, { id: 'APC1', ruoli: ['A', 'Pc'], x: 50, y: 85 }
+    ],
     linee: { portiere: 1, difesa: 4, centrocampo: 3, trequarti: 0, attacco: 3 }
   },
   '4-3-1-2': {
-    ruoli: { Por: 1, Dd: 1, Dc: 2, Ds: 1, M: 2, C: 1, T: 1, A: 1, Pc: 1 },
+    // P, DD-DC-DC-DS, M/C-M-C, T, T/A/PC-A/PC
+    ruoli: { Por: 1, Dd: 1, Dc: 2, Ds: 1, M: 2, C: 2, T: 2, A: 1, Pc: 2 },
+    posizioni: [
+      { id: 'P1', ruoli: ['Por'], x: 50, y: 8 },
+      { id: 'DD1', ruoli: ['Dd'], x: 80, y: 25 }, { id: 'DC1', ruoli: ['Dc'], x: 60, y: 25 }, { id: 'DC2', ruoli: ['Dc'], x: 40, y: 25 }, { id: 'DS1', ruoli: ['Ds'], x: 20, y: 25 },
+      { id: 'MC1', ruoli: ['M', 'C'], x: 25, y: 50 }, { id: 'M1', ruoli: ['M'], x: 50, y: 55 }, { id: 'C1', ruoli: ['C'], x: 75, y: 50 },
+      { id: 'T1', ruoli: ['T'], x: 50, y: 65 },
+      { id: 'TAPC1', ruoli: ['T', 'A', 'Pc'], x: 35, y: 85 }, { id: 'APC1', ruoli: ['A', 'Pc'], x: 65, y: 85 }
+    ],
     linee: { portiere: 1, difesa: 4, centrocampo: 3, trequarti: 1, attacco: 2 }
   },
   '4-4-2': {
-    ruoli: { Por: 1, Dd: 1, Dc: 2, Ds: 1, M: 2, C: 2, E: 2, A: 1, Pc: 1 },
+    // P, DD-DC-DC-DS, M/C-E-C-E/W, A/PC-A/PC
+    ruoli: { Por: 1, Dd: 1, Dc: 2, Ds: 1, M: 1, C: 2, E: 2, W: 1, A: 1, Pc: 1 },
+    posizioni: [
+      { id: 'P1', ruoli: ['Por'], x: 50, y: 8 },
+      { id: 'DD1', ruoli: ['Dd'], x: 80, y: 25 }, { id: 'DC1', ruoli: ['Dc'], x: 60, y: 25 }, { id: 'DC2', ruoli: ['Dc'], x: 40, y: 25 }, { id: 'DS1', ruoli: ['Ds'], x: 20, y: 25 },
+      { id: 'MC1', ruoli: ['M', 'C'], x: 25, y: 50 }, { id: 'E1', ruoli: ['E'], x: 45, y: 55 }, { id: 'C1', ruoli: ['C'], x: 65, y: 55 }, { id: 'EW1', ruoli: ['E', 'W'], x: 85, y: 50 },
+      { id: 'APC1', ruoli: ['A', 'Pc'], x: 40, y: 85 }, { id: 'APC2', ruoli: ['A', 'Pc'], x: 60, y: 85 }
+    ],
     linee: { portiere: 1, difesa: 4, centrocampo: 4, trequarti: 0, attacco: 2 }
   },
   '4-1-4-1': {
-    ruoli: { Por: 1, Dd: 1, Dc: 2, Ds: 1, M: 1, C: 1, T: 2, E: 2, W: 1, A: 1 },
+    // P, DD-DC-DC-DS, M, C/T-T-E/W-W, A/PC
+    ruoli: { Por: 1, Dd: 1, Dc: 2, Ds: 1, M: 1, C: 1, T: 3, E: 1, W: 2, A: 1, Pc: 1 },
+    posizioni: [
+      { id: 'P1', ruoli: ['Por'], x: 50, y: 8 },
+      { id: 'DD1', ruoli: ['Dd'], x: 80, y: 25 }, { id: 'DC1', ruoli: ['Dc'], x: 60, y: 25 }, { id: 'DC2', ruoli: ['Dc'], x: 40, y: 25 }, { id: 'DS1', ruoli: ['Ds'], x: 20, y: 25 },
+      { id: 'M1', ruoli: ['M'], x: 50, y: 45 },
+      { id: 'CT1', ruoli: ['C', 'T'], x: 20, y: 65 }, { id: 'T1', ruoli: ['T'], x: 40, y: 70 }, { id: 'EW1', ruoli: ['E', 'W'], x: 60, y: 70 }, { id: 'W1', ruoli: ['W'], x: 80, y: 65 },
+      { id: 'APC1', ruoli: ['A', 'Pc'], x: 50, y: 85 }
+    ],
     linee: { portiere: 1, difesa: 4, centrocampo: 1, trequarti: 4, attacco: 1 }
   },
   '4-4-1-1': {
-    ruoli: { Por: 1, Dd: 1, Dc: 2, Ds: 1, M: 2, C: 2, E: 2, T: 1, A: 1 },
+    // P, DD-DC-DC-DS, M-C-E/W-E/W, T/A, A/PC
+    ruoli: { Por: 1, Dd: 1, Dc: 2, Ds: 1, M: 1, C: 1, E: 2, W: 2, T: 1, A: 2, Pc: 1 },
+    posizioni: [
+      { id: 'P1', ruoli: ['Por'], x: 50, y: 8 },
+      { id: 'DD1', ruoli: ['Dd'], x: 80, y: 25 }, { id: 'DC1', ruoli: ['Dc'], x: 60, y: 25 }, { id: 'DC2', ruoli: ['Dc'], x: 40, y: 25 }, { id: 'DS1', ruoli: ['Ds'], x: 20, y: 25 },
+      { id: 'M1', ruoli: ['M'], x: 25, y: 50 }, { id: 'C1', ruoli: ['C'], x: 40, y: 55 }, { id: 'EW1', ruoli: ['E', 'W'], x: 60, y: 55 }, { id: 'EW2', ruoli: ['E', 'W'], x: 80, y: 50 },
+      { id: 'TA1', ruoli: ['T', 'A'], x: 50, y: 70 },
+      { id: 'APC1', ruoli: ['A', 'Pc'], x: 50, y: 85 }
+    ],
     linee: { portiere: 1, difesa: 4, centrocampo: 4, trequarti: 1, attacco: 1 }
   },
   '4-2-3-1': {
-    ruoli: { Por: 1, Dd: 1, Dc: 2, Ds: 1, M: 2, W: 2, T: 1, A: 1, Pc: 1 },
+    // P, DD-DC-DC-DS, M-M/C, W/T-T-W/A, A/PC
+    ruoli: { Por: 1, Dd: 1, Dc: 2, Ds: 1, M: 2, C: 1, W: 2, T: 2, A: 1, Pc: 1 },
+    posizioni: [
+      { id: 'P1', ruoli: ['Por'], x: 50, y: 8 },
+      { id: 'DD1', ruoli: ['Dd'], x: 80, y: 25 }, { id: 'DC1', ruoli: ['Dc'], x: 60, y: 25 }, { id: 'DC2', ruoli: ['Dc'], x: 40, y: 25 }, { id: 'DS1', ruoli: ['Ds'], x: 20, y: 25 },
+      { id: 'M1', ruoli: ['M'], x: 35, y: 45 }, { id: 'MC1', ruoli: ['M', 'C'], x: 65, y: 45 },
+      { id: 'WT1', ruoli: ['W', 'T'], x: 25, y: 65 }, { id: 'T1', ruoli: ['T'], x: 50, y: 70 }, { id: 'WA1', ruoli: ['W', 'A'], x: 75, y: 65 },
+      { id: 'APC1', ruoli: ['A', 'Pc'], x: 50, y: 85 }
+    ],
     linee: { portiere: 1, difesa: 4, centrocampo: 2, trequarti: 3, attacco: 1 }
   }
 };
@@ -190,6 +275,7 @@ const STORAGE_KEYS = {
   PREZZI_PAGATI: 'mantra-asta-prezzi-pagati',
   FASCE_MANUALI: 'mantra-asta-fasce-manuali',
   LARGHEZZA_LISTONE: 'mantra-asta-larghezza-listone',
+  LARGHEZZA_ROSA: 'mantra-asta-larghezza-rosa',
   GIOCATORI_SCARTATI: 'mantra-asta-giocatori-scartati',
   GIOCATORI_PREFERITI: 'mantra-asta-giocatori-preferiti',
   NOTE_GIOCATORI: 'mantra-asta-note-giocatori'
@@ -234,6 +320,7 @@ function App() {
   const [selectedPlayerForStats, setSelectedPlayerForStats] = useState(null);
   const [prezziPagati, setPrezziPagati] = useState(() => caricaDaLocalStorage(STORAGE_KEYS.PREZZI_PAGATI, {}));
   const [larghezzaListone, setLarghezzaListone] = useState(() => caricaDaLocalStorage(STORAGE_KEYS.LARGHEZZA_LISTONE, 40));
+  const [larghezzaRosa, setLarghezzaRosa] = useState(() => caricaDaLocalStorage(STORAGE_KEYS.LARGHEZZA_ROSA, 55));
   
   // Definizioni fasce (senza range automatici)
   const fasceFVM = {
@@ -366,6 +453,10 @@ function App() {
   }, [larghezzaListone]);
 
   useEffect(() => {
+    salvaInLocalStorage(STORAGE_KEYS.LARGHEZZA_ROSA, larghezzaRosa);
+  }, [larghezzaRosa]);
+
+  useEffect(() => {
     salvaInLocalStorage(STORAGE_KEYS.GIOCATORI_SCARTATI, giocatoriScartati);
   }, [giocatoriScartati]);
 
@@ -386,6 +477,7 @@ function App() {
       prezziPagati,
       fasceManuali,
       larghezzaListone,
+      larghezzaRosa,
       giocatoriScartati,
       giocatoriPreferiti,
       noteGiocatori,
@@ -418,6 +510,7 @@ function App() {
         if (datiAsta.prezziPagati) setPrezziPagati(datiAsta.prezziPagati);
         if (datiAsta.fasceManuali) setFasceManuali(datiAsta.fasceManuali);
         if (datiAsta.larghezzaListone !== undefined) setLarghezzaListone(datiAsta.larghezzaListone);
+        if (datiAsta.larghezzaRosa !== undefined) setLarghezzaRosa(datiAsta.larghezzaRosa);
         if (datiAsta.giocatoriScartati) setGiocatoriScartati(datiAsta.giocatoriScartati);
         if (datiAsta.giocatoriPreferiti) setGiocatoriPreferiti(datiAsta.giocatoriPreferiti);
         if (datiAsta.noteGiocatori) setNoteGiocatori(datiAsta.noteGiocatori);
@@ -733,6 +826,7 @@ function App() {
       return { modulo, verificato, config };
     });
   };
+
 
   // Suggerimenti intelligenti e contestuali
   const suggerimenti = useMemo(() => {
@@ -1627,8 +1721,8 @@ function App() {
         
         {/* Sezione Rosa + Moduli + Suggerimenti (dinamica %) */}
         <div className="flex" style={{ width: `${100 - larghezzaListone}%` }}>
-          {/* Rosa (33%) */}
-          <div className="w-1/3 flex flex-col bg-white border-r border-gray-200">
+          {/* Rosa */}
+          <div className="flex flex-col bg-white border-r border-gray-200" style={{ width: `${larghezzaRosa}%` }}>
             <div className="p-4 border-b border-gray-200">
               <h2 className="text-lg font-semibold text-gray-900">ROSA ({rosa.length})</h2>
               <div className="text-sm text-gray-500 mt-1">{FORMULA_ROSA}</div>
@@ -1754,108 +1848,113 @@ function App() {
             </div>
           </div>
 
-          {/* Moduli (33%) */}
-          <div className="w-1/3 flex flex-col bg-white border-r border-gray-200">
-            <div className="p-4 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">VERIFICA MODULI</h2>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto p-4">
-              {verificaModuli().map(({ modulo, verificato, config }) => (
-                <div key={modulo} className="mb-4 p-3 border border-gray-200 rounded-lg">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-semibold text-gray-900">{modulo}</h3>
-                    <span className={`px-2 py-1 text-xs font-bold rounded ${
-                      verificato ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                    }`}>
-                      {verificato ? '✓ OK' : '✗ KO'}
-                    </span>
-                  </div>
-                  
-                  {Object.entries(config.ruoli).map(([ruolo, slot]) => {
-                    if (slot === 0) return null;
-                    const disponibili = conteggioRosa.ruoli[ruolo] || 0;
-                    const necessariCalcolati = (slot * 2) + 1; // Applica la formula
-                    const ok = disponibili >= necessariCalcolati;
-                    const ruoloInfo = RUOLI_MANTRA[ruolo];
-                    
-                    const righe = [
-                      <div key={ruolo} className="flex items-center justify-between text-sm">
-                        <div className="flex items-center space-x-2">
-                          {ruoloInfo && (
-                            <span className={`px-1 py-0.5 text-xs font-bold text-white rounded ${ruoloInfo.colore}`}>
-                              {ruoloInfo.sigla}
-                            </span>
-                          )}
-                          <span className="text-gray-600">{ruolo}:</span>
-                        </div>
-                        <span className={ok ? 'text-green-600' : 'text-red-600'}>
-                          {disponibili}/{necessariCalcolati}
-                        </span>
-                      </div>
-                    ];
-                    
-                    // Aggiungi ruolo offensivo intercambiabile se esiste
-                    const ruoloOffensivo = RUOLO_OFFENSIVO_MAP[ruolo];
-                    if (ruoloOffensivo) {
-                      const disponibiliOffensivi = conteggioRosa.ruoli[ruoloOffensivo] || 0;
-                      const ruoloOffensivoInfo = RUOLI_MANTRA[ruoloOffensivo];
-                      const okOffensivo = disponibiliOffensivi >= necessariCalcolati;
-                      
-                      righe.push(
-                        <div key={ruoloOffensivo} className="flex items-center justify-between text-sm bg-purple-50 px-2 py-1 rounded ml-4">
-                          <div className="flex items-center space-x-2">
-                            {ruoloOffensivoInfo && (
-                              <span className={`px-1 py-0.5 text-xs font-bold text-white rounded ${ruoloOffensivoInfo.colore}`}>
-                                {ruoloOffensivoInfo.sigla}
-                              </span>
-                            )}
-                            <span className="text-purple-600 text-xs">({ruoloOffensivo} intercamb.):</span>
-                          </div>
-                          <span className={okOffensivo ? 'text-green-600' : 'text-purple-600'}>
-                            {disponibiliOffensivi}/{necessariCalcolati}
-                          </span>
-                        </div>
-                      );
-                    }
-                    
-                    return righe;
-                  }).flat()}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Suggerimenti (33%) */}
-          <div className="w-1/3 flex flex-col bg-white">
-            <div className="p-4 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">SUGGERIMENTI</h2>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto p-4">
-              {suggerimenti.map((sug, index) => (
-                <div key={index} className={`mb-3 p-3 rounded-lg border-l-4 ${
-                  sug.priorita === 'alta' ? 'bg-red-50 border-red-400' :
-                  sug.priorita === 'media' ? 'bg-yellow-50 border-yellow-400' :
-                  'bg-blue-50 border-blue-400'
-                }`}>
-                  <div className="flex items-start">
-                    <div className={`flex-shrink-0 w-2 h-2 mt-2 rounded-full ${
-                      sug.priorita === 'alta' ? 'bg-red-400' :
-                      sug.priorita === 'media' ? 'bg-yellow-400' :
-                      'bg-blue-400'
-                    }`}></div>
-                    <p className="ml-3 text-sm text-gray-700">{sug.messaggio}</p>
-                  </div>
-                </div>
-              ))}
+          {/* Divisore Rosa/Formazione */}
+          <div 
+            className="w-1 bg-gray-300 hover:bg-blue-400 cursor-col-resize transition-colors"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              const startX = e.clientX;
+              const startWidth = larghezzaRosa;
+              const containerWidth = (100 - larghezzaListone);
               
-              {suggerimenti.length === 0 && (
-                <div className="text-center text-gray-500 mt-8">
-                  <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p>Tutto ok! La tua rosa è bilanciata.</p>
+              const onMouseMove = (e) => {
+                const deltaX = e.clientX - startX;
+                const containerWidthPx = window.innerWidth * (100 - larghezzaListone) / 100;
+                const deltaPercent = (deltaX / containerWidthPx) * 100;
+                const newWidth = Math.min(Math.max(startWidth + deltaPercent, 25), 75); // Min 25%, Max 75%
+                setLarghezzaRosa(newWidth);
+              };
+              
+              const onMouseUp = () => {
+                document.removeEventListener('mousemove', onMouseMove);
+                document.removeEventListener('mouseup', onMouseUp);
+              };
+              
+              document.addEventListener('mousemove', onMouseMove);
+              document.addEventListener('mouseup', onMouseUp);
+            }}
+          />
+
+          {/* Formazione + Suggerimenti */}
+          <div className="flex-1 flex flex-col bg-white" style={{ height: 'calc(100vh - 200px)' }}>
+            {/* Formazione (80%) */}
+            <div className="h-[80%] flex flex-col border-b border-gray-200 min-h-0">
+              <div className="p-2 border-b border-gray-200 flex-shrink-0">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-gray-900">FORMAZIONE</h2>
+                  {moduliTarget.length > 1 && (
+                    <select
+                      value={moduliTarget[0]}
+                      onChange={(e) => {
+                        const newModulo = e.target.value;
+                        setModuliTarget(prev => [newModulo, ...prev.filter(m => m !== newModulo)]);
+                      }}
+                      className="px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {moduliTarget.map(modulo => (
+                        <option key={modulo} value={modulo}>
+                          {modulo}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
-              )}
+              </div>
+              
+              <div className="flex-1 overflow-y-auto min-h-0">
+                {moduliTarget.length > 0 ? (
+                  <TacticalFormation 
+                    modulo={moduliTarget[0]}
+                    configurazione={CONFIGURAZIONE_MODULI[moduliTarget[0]]}
+                    giocatoriRosa={rosa}
+                    ruoliMantra={RUOLI_MANTRA}
+                  />
+                ) : (
+                  <div className="p-2 text-center text-gray-500">
+                    <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-xs">Seleziona modulo target</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Suggerimenti (20%) */}
+            <div className="h-[20%] flex flex-col min-h-0">
+              <div className="p-3 border-b border-gray-200 flex-shrink-0">
+                <h2 className="text-sm font-semibold text-gray-900">SUGGERIMENTI</h2>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto p-2 min-h-0">
+                {suggerimenti.slice(0, 3).map((sug, index) => (
+                  <div key={index} className={`mb-2 p-2 rounded border-l-4 ${
+                    sug.priorita === 'alta' ? 'bg-red-50 border-red-400' :
+                    sug.priorita === 'media' ? 'bg-yellow-50 border-yellow-400' :
+                    'bg-blue-50 border-blue-400'
+                  }`}>
+                    <div className="flex items-start">
+                      <div className={`flex-shrink-0 w-1.5 h-1.5 mt-1.5 rounded-full ${
+                        sug.priorita === 'alta' ? 'bg-red-400' :
+                        sug.priorita === 'media' ? 'bg-yellow-400' :
+                        'bg-blue-400'
+                      }`}></div>
+                      <p className="ml-2 text-xs text-gray-700">{sug.messaggio}</p>
+                    </div>
+                  </div>
+                ))}
+                
+                {suggerimenti.length === 0 && (
+                  <div className="text-center text-gray-500 py-4">
+                    <Users className="w-6 h-6 mx-auto mb-2 opacity-50" />
+                    <p className="text-xs">Rosa bilanciata</p>
+                  </div>
+                )}
+                
+                {suggerimenti.length > 3 && (
+                  <div className="text-center mt-2">
+                    <p className="text-xs text-gray-500">+{suggerimenti.length - 3} altri suggerimenti</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

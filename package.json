@@ -10,10 +10,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "axios": "^1.11.0",
     "cheerio": "^1.1.2",
     "lucide-react": "^0.541.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
+    "scrapfly-sdk": "^0.6.9",
     "tailwindcss": "^3.4.13",
     "xlsx": "^0.18.5"
   },
