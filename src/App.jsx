@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Upload, Download, Filter, Users, Target } from 'lucide-react';
+import { Search, Upload, Download, Filter, Users, Target, Eye } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import PlayerStatsModal from './components/PlayerStatsModal.jsx';
 
 // Sistema ruoli MANTRA (completo dal file Excel)
 const RUOLI_MANTRA = {
@@ -81,18 +82,46 @@ const RUOLO_OFFENSIVO_MAP = {
 };
 
 // Funzione per determinare la fascia di un giocatore (automatica + manuale)
-const getFasciaGiocatore = (giocatoreId, fvm, fasceManuali, fasceFVM) => {
+const getFasciaGiocatore = (giocatoreId, fvm, fasceManuali, fasceFVM, ruolo, tuttiGiocatori = []) => {
   // Se c'è un'assegnazione manuale, usala
   if (fasceManuali[giocatoreId]) {
     const fasciaKey = fasceManuali[giocatoreId];
     return { key: fasciaKey, ...fasceFVM[fasciaKey] };
   }
   
-  // Altrimenti usa l'assegnazione automatica basata su FVM
-  if (fvm >= 300) return { key: 'supertop', ...fasceFVM.supertop };
-  if (fvm >= 200) return { key: 'top', ...fasceFVM.top };
-  if (fvm >= 100) return { key: 'buoni', ...fasceFVM.buoni };
-  if (fvm >= 50) return { key: 'scommesse', ...fasceFVM.scommesse };
+  // Assegnazione automatica basata su ranking per ruolo
+  if (tuttiGiocatori.length === 0) {
+    // Fallback se non abbiamo tutti i giocatori
+    return { key: 'buoni', ...fasceFVM.buoni };
+  }
+  
+  const ruoloPrincipale = getRuoloPrincipale(ruolo);
+  if (!ruoloPrincipale) {
+    return { key: 'daEvitare', ...fasceFVM.daEvitare };
+  }
+  
+  // Filtra giocatori dello stesso ruolo e ordinali per FVM decrescente
+  const giocatoriStessoRuolo = tuttiGiocatori
+    .filter(g => getRuoloPrincipale(g.ruolo) === ruoloPrincipale && g.fvm > 0)
+    .sort((a, b) => (b.fvm || 0) - (a.fvm || 0));
+  
+  // Trova la posizione del giocatore corrente nel ranking
+  const posizione = giocatoriStessoRuolo.findIndex(g => g.id === giocatoreId);
+  
+  if (posizione === -1) {
+    return { key: 'daEvitare', ...fasceFVM.daEvitare };
+  }
+  
+  // Assegna fascia in base al ranking:
+  // Primi 4: Top
+  // Successivi 4: Supertop  
+  // Successivi 8: Buoni
+  // Successivi 8: Scommesse
+  // Resto: Da evitare
+  if (posizione < 4) return { key: 'top', ...fasceFVM.top };
+  if (posizione < 8) return { key: 'supertop', ...fasceFVM.supertop };
+  if (posizione < 16) return { key: 'buoni', ...fasceFVM.buoni };
+  if (posizione < 24) return { key: 'scommesse', ...fasceFVM.scommesse };
   return { key: 'daEvitare', ...fasceFVM.daEvitare };
 };
 
@@ -199,6 +228,10 @@ function App() {
   const [filtroPreferiti, setFiltroPreferiti] = useState('TUTTI'); // 'TUTTI', 'PREFERITI', 'NON_PREFERITI'
   const [ricerca, setRicerca] = useState('');
   const [ordinamento, setOrdinamento] = useState('FVM');
+  
+  // Stati per il modal statistiche FBRef
+  const [statsModalOpen, setStatsModalOpen] = useState(false);
+  const [selectedPlayerForStats, setSelectedPlayerForStats] = useState(null);
   const [prezziPagati, setPrezziPagati] = useState(() => caricaDaLocalStorage(STORAGE_KEYS.PREZZI_PAGATI, {}));
   const [larghezzaListone, setLarghezzaListone] = useState(() => caricaDaLocalStorage(STORAGE_KEYS.LARGHEZZA_LISTONE, 40));
   
@@ -464,6 +497,17 @@ function App() {
     const key = `${giocatore.nome}_${giocatore.squadra}`;
     return noteGiocatori[key] || '';
   };
+
+  // Funzioni per gestire il modal statistiche FBRef
+  const openPlayerStats = (giocatore) => {
+    setSelectedPlayerForStats(giocatore);
+    setStatsModalOpen(true);
+  };
+
+  const closePlayerStats = () => {
+    setStatsModalOpen(false);
+    setSelectedPlayerForStats(null);
+  };
   
   // Calcolo dinamico rosa necessaria per ruoli specifici
   const rosaNecessaria = useMemo(() => {
@@ -582,7 +626,7 @@ function App() {
       })();
       
       // Filtro per fascia (automatica + manuale)
-      const fasciaGiocatore = getFasciaGiocatore(giocatore.id, giocatore.fvm, fasceManuali, fasceFVM);
+      const fasciaGiocatore = getFasciaGiocatore(giocatore.id, giocatore.fvm, fasceManuali, fasceFVM, giocatore.ruolo, listone);
       const matchFascia = filtroFascia === 'TUTTE' || fasciaGiocatore.key === filtroFascia;
       
       // Filtro per preferiti
@@ -606,10 +650,10 @@ function App() {
         case 'FVM':
           return (b.fvm || 0) - (a.fvm || 0);
         case 'FASCIA':
-          // Ordina per fascia (automatica + manuale) (Supertop → Da evitare)
-          const fasciaOrder = ['supertop', 'top', 'buoni', 'scommesse', 'daEvitare'];
-          const fasciaA = getFasciaGiocatore(a.id, a.fvm, fasceManuali, fasceFVM).key;
-          const fasciaB = getFasciaGiocatore(b.id, b.fvm, fasceManuali, fasceFVM).key;
+          // Ordina per fascia (automatica + manuale) (Top → Da evitare)
+          const fasciaOrder = ['top', 'supertop', 'buoni', 'scommesse', 'daEvitare'];
+          const fasciaA = getFasciaGiocatore(a.id, a.fvm, fasceManuali, fasceFVM, a.ruolo, listone).key;
+          const fasciaB = getFasciaGiocatore(b.id, b.fvm, fasceManuali, fasceFVM, b.ruolo, listone).key;
           const orderA = fasciaOrder.indexOf(fasciaA);
           const orderB = fasciaOrder.indexOf(fasciaB);
           if (orderA !== orderB) return orderA - orderB;
@@ -1199,10 +1243,9 @@ function App() {
                 return (
                   <div
                     key={giocatore.id}
-                    className={`p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer ${
+                    className={`p-4 border-b border-gray-100 hover:bg-gray-50 ${
                       inRosa ? 'bg-green-50' : ''
                     }`}
-                    onClick={() => inRosa ? rimuoviGiocatore(giocatore) : aggiungiGiocatore(giocatore)}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-4 flex-1">
@@ -1234,17 +1277,19 @@ function App() {
                             }}
                             className={`p-1.5 rounded-full transition-all hover:scale-110 ${
                               isGiocatorePreferito(giocatore)
-                                ? 'text-pink-500 hover:text-pink-600 scale-110'
-                                : 'text-gray-300 hover:text-pink-400'
+                                ? 'text-pink-500 hover:text-pink-600 scale-125 opacity-100 shadow-lg shadow-pink-500/50'
+                                : 'text-gray-400 hover:text-pink-400 opacity-30 hover:opacity-70'
                             }`}
                             title={isGiocatorePreferito(giocatore) ? 'Rimuovi dai preferiti' : 'Aggiungi ai preferiti'}
                           >
-                            <span className="text-lg">❤️</span>
+                            <span className={`transition-all duration-300 ${
+                              isGiocatorePreferito(giocatore) ? 'text-2xl animate-bounce' : 'text-lg'
+                            }`}>❤️</span>
                           </button>
                           {/* Badge Fascia cliccabile accanto al nome */}
                           <div className="relative">
                             {(() => {
-                              const fascia = getFasciaGiocatore(giocatore.id, giocatore.fvm, fasceManuali, fasceFVM);
+                              const fascia = getFasciaGiocatore(giocatore.id, giocatore.fvm, fasceManuali, fasceFVM, giocatore.ruolo, listone);
                               const isDropdownOpen = dropdownFasciaAperto[giocatore.id];
                               
                               return (
@@ -1327,29 +1372,81 @@ function App() {
                             />
                           </div>
                         )}
-                        {/* Bottone Scarta/Ripristina */}
+                        {/* Bottoni Azione */}
                         {tabAttiva === 'scartati' ? (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              ripristinaGiocatore(giocatore);
-                            }}
-                            className="px-3 py-2 text-sm bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors shadow-sm font-medium"
-                            title="Ripristina questo giocatore nel listone"
-                          >
-                            ↩️ Ripristina
-                          </button>
+                          <div className="flex flex-col space-y-1">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                ripristinaGiocatore(giocatore);
+                              }}
+                              className="px-3 py-2 text-sm bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors shadow-sm font-medium"
+                              title="Ripristina questo giocatore nel listone"
+                            >
+                              ↩️ Ripristina
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openPlayerStats(giocatore);
+                              }}
+                              className="px-3 py-2 text-sm bg-purple-500 text-white rounded-md hover:bg-purple-600 transition-colors shadow-sm font-medium"
+                              title="Vedi statistiche dettagliate da FBRef"
+                            >
+                              📊 Statistiche
+                            </button>
+                          </div>
                         ) : (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              scartaGiocatore(giocatore);
-                            }}
-                            className="px-3 py-2 text-sm bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors shadow-sm font-medium"
-                            title="Scarta questo giocatore (acquistato da altri)"
-                          >
-                            🗑️ Scarta
-                          </button>
+                          <div className="flex flex-col space-y-1">
+                            <div className="flex space-x-1">
+                              {!inRosa ? (
+                                <>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      aggiungiGiocatore(giocatore);
+                                    }}
+                                    className="px-2 py-1.5 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors shadow-sm font-medium"
+                                    title="Acquista questo giocatore per la tua rosa"
+                                  >
+                                    💰 Acquista
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      scartaGiocatore(giocatore);
+                                    }}
+                                    className="px-2 py-1.5 text-xs bg-red-500 text-white rounded hover:bg-red-600 transition-colors shadow-sm font-medium"
+                                    title="Scarta questo giocatore (acquistato da altri)"
+                                  >
+                                    🗑️ Scarta
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    rimuoviGiocatore(giocatore);
+                                  }}
+                                  className="px-2 py-1.5 text-xs bg-orange-500 text-white rounded hover:bg-orange-600 transition-colors shadow-sm font-medium"
+                                  title="Rimuovi questo giocatore dalla tua rosa"
+                                >
+                                  ❌ Rimuovi
+                                </button>
+                              )}
+                            </div>
+                            {/* Bottone Statistiche */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openPlayerStats(giocatore);
+                              }}
+                              className="px-2 py-1.5 text-xs bg-purple-500 text-white rounded hover:bg-purple-600 transition-colors shadow-sm font-medium w-full"
+                              title="Vedi statistiche dettagliate da FBRef"
+                            >
+                              📊 Statistiche
+                            </button>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -1425,19 +1522,21 @@ function App() {
                                 e.stopPropagation();
                                 toggleGiocatorePreferito(giocatore);
                               }}
-                              className={`p-1.5 rounded-full transition-all hover:scale-110 opacity-75 ${
+                              className={`p-1.5 rounded-full transition-all hover:scale-110 ${
                                 isGiocatorePreferito(giocatore)
-                                  ? 'text-pink-500 hover:text-pink-600 scale-110'
-                                  : 'text-gray-300 hover:text-pink-400'
+                                  ? 'text-pink-500 hover:text-pink-600 scale-125 opacity-100 shadow-lg shadow-pink-500/50'
+                                  : 'text-gray-400 hover:text-pink-400 opacity-25 hover:opacity-60'
                               }`}
                               title={isGiocatorePreferito(giocatore) ? 'Rimuovi dai preferiti' : 'Aggiungi ai preferiti'}
                             >
-                              <span className="text-lg">❤️</span>
+                              <span className={`transition-all duration-300 ${
+                                isGiocatorePreferito(giocatore) ? 'text-2xl animate-bounce' : 'text-lg'
+                              }`}>❤️</span>
                             </button>
                             {/* Badge Fascia per scartati */}
                             <div className="relative">
                               {(() => {
-                                const fascia = getFasciaGiocatore(giocatore.id, giocatore.fvm, fasceManuali, fasceFVM);
+                                const fascia = getFasciaGiocatore(giocatore.id, giocatore.fvm, fasceManuali, fasceFVM, giocatore.ruolo, listone);
                                 return (
                                   <span
                                     className={`px-2 py-1 text-sm font-bold text-white rounded shadow-sm opacity-75 ${fascia.colore}`}
@@ -1761,6 +1860,13 @@ function App() {
           </div>
         </div>
       </div>
+      
+      {/* Modal Statistiche FBRef */}
+      <PlayerStatsModal 
+        isOpen={statsModalOpen}
+        onClose={closePlayerStats}
+        giocatore={selectedPlayerForStats}
+      />
     </div>
   );
 }
