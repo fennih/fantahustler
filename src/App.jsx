@@ -331,6 +331,7 @@ function App() {
   const [sidebarPreferitiVisible, setSidebarPreferitiVisible] = useState(false);
   // Stato responsivo per adattare il layout colonne su mobile
   const [isMobile, setIsMobile] = useState(false);
+  const [mobileTab, setMobileTab] = useState('listone'); // 'listone' o 'rosa'
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -1252,11 +1253,11 @@ function App() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col overflow-x-hidden">
       {/* Header */}
-      <div className="bg-white shadow-sm border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-3">
-              <h1 className="text-2xl font-bold text-gray-900">FANTAHUSTLER</h1>
+      <div className="bg-white shadow-sm border-b border-gray-200 px-3 sm:px-6 py-2 sm:py-4">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center space-x-2 sm:space-x-4">
+            <div className="flex items-center space-x-2 sm:space-x-3">
+              <h1 className="text-lg sm:text-2xl font-bold text-gray-900">FANTAHUSTLER</h1>
               {/* Scudetto Team Eno */}
               <div className="flex items-center bg-white border-2 border-red-500 px-3 py-1 rounded-lg shadow-lg">
                 <svg 
@@ -1307,24 +1308,27 @@ function App() {
                 <span className="text-sm font-bold text-red-500">TEAM ENO</span>
               </div>
             </div>
-            <div className="flex items-center space-x-4 flex-wrap gap-2">
+            {/* Budget - Layout mobile ottimizzato */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 space-y-1 sm:space-y-0">
               <div className="flex items-center space-x-2">
-                <span className="text-xs sm:text-sm font-medium text-gray-500">BUDGET:</span>
-                <span className={`text-xl sm:text-lg font-bold ${budget < 50 ? 'text-red-600' : 'text-green-600'}`}>
+                <span className="text-xs font-medium text-gray-500">BUDGET:</span>
+                <span className={`text-lg font-bold ${budget < 50 ? 'text-red-600' : 'text-green-600'}`}>
                   {budget}/{budgetMax} FM
                 </span>
               </div>
-              <div className="flex items-center space-x-2 text-xs sm:text-sm">
-                <span className="text-gray-500">Utilizzato:</span>
-                <span className={`font-bold ${budgetMax - budget > budgetMax * 0.7 ? 'text-red-600' : 'text-blue-600'}`}>
-                  {budgetMax - budget} FM ({calcolaPercentuale(budgetMax - budget)}%)
-                </span>
-              </div>
-              <div className="flex items-center space-x-2 text-xs sm:text-sm">
-                <span className="text-gray-500">Rimanente:</span>
-                <span className={`font-bold ${budget < 50 ? 'text-red-600' : 'text-green-600'}`}>
-                  {budget} FM ({calcolaPercentuale(budget)}%)
-                </span>
+              <div className="flex items-center justify-between sm:justify-start sm:space-x-4 text-xs">
+                <div className="flex items-center space-x-1">
+                  <span className="text-gray-500">Usato:</span>
+                  <span className={`font-bold ${budgetMax - budget > budgetMax * 0.7 ? 'text-red-600' : 'text-blue-600'}`}>
+                    {budgetMax - budget} FM
+                  </span>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <span className="text-gray-500">Rimane:</span>
+                  <span className={`font-bold ${budget < 50 ? 'text-red-600' : 'text-green-600'}`}>
+                    {budget} FM
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -1412,9 +1416,42 @@ function App() {
         </div>
       </div>
 
+      {/* Tab Navigation per Mobile */}
+      {isMobile && (
+        <div className="bg-white border-b border-gray-200 px-4 py-2">
+          <div className="flex space-x-1">
+            <button
+              onClick={() => setMobileTab('listone')}
+              className={`flex-1 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                mobileTab === 'listone'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              📋 LISTONE ({listoneFiltered.length})
+            </button>
+            <button
+              onClick={() => setMobileTab('rosa')}
+              className={`flex-1 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                mobileTab === 'rosa'
+                  ? 'bg-green-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              ⚽ ROSA & FORMAZIONE ({rosa.length}/32)
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-1 flex-col md:flex-row">
         {/* Sezione Listone/Scartati (dinamica %) */}
-        <div className="flex flex-col bg-white border-r border-gray-200" style={{ width: isMobile ? '100%' : `${larghezzaListone}%` }}>
+        <div 
+          className={`flex flex-col bg-white border-r border-gray-200 ${
+            isMobile ? (mobileTab === 'listone' ? 'block' : 'hidden') : 'block'
+          }`} 
+          style={{ width: isMobile ? '100%' : `${larghezzaListone}%` }}
+        >
           {/* Header con Tab */}
           <div className="p-4 border-b border-gray-200">
             <div className="flex items-center justify-between mb-4">
@@ -2286,9 +2323,15 @@ function App() {
         />
         
         {/* Sezione Rosa + Moduli + Suggerimenti (dinamica %) */}
-        <div className="flex" style={{ width: isMobile ? '100%' : `${100 - larghezzaListone}%` }}>
+        <div 
+          className={`flex ${isMobile ? (mobileTab === 'rosa' ? 'block' : 'hidden') : 'block'}`} 
+          style={{ width: isMobile ? '100%' : `${100 - larghezzaListone}%` }}
+        >
           {/* Rosa */}
-          <div className="flex flex-col bg-white border-r border-gray-200" style={{ width: isMobile ? '100%' : `${larghezzaRosa}%` }}>
+          <div 
+            className="flex flex-col bg-white border-r border-gray-200" 
+            style={{ width: isMobile ? '100%' : `${larghezzaRosa}%` }}
+          >
             <div className="p-2 sm:p-4 border-b border-gray-200">
               <h2 className="text-base sm:text-lg font-semibold text-gray-900">ROSA ({rosa.length}/32)</h2>
               <div className="text-xs sm:text-sm text-gray-500 mt-1 hidden sm:block">{FORMULA_ROSA}</div>
@@ -2570,9 +2613,12 @@ function App() {
           />
 
           {/* Formazione + Suggerimenti */}
-          <div className="flex-1 flex flex-col bg-white" style={{ height: isMobile ? 'auto' : 'calc(100vh - 200px)' }}>
-            {/* Formazione (50%) */}
-            <div className="h-[50%] flex flex-col border-b border-gray-200 min-h-0">
+          <div 
+            className={`flex-1 flex flex-col bg-white ${isMobile ? '' : 'border-l border-gray-200'}`} 
+            style={{ height: isMobile ? 'auto' : 'calc(100vh - 200px)' }}
+          >
+            {/* Formazione */}
+            <div className={`${isMobile ? 'min-h-[400px]' : 'h-[50%]'} flex flex-col border-b border-gray-200 min-h-0`}>
               <div className="p-2 border-b border-gray-200 flex-shrink-0">
                 <div className="flex items-center justify-between">
                   <h2 className="text-lg font-semibold text-gray-900">FORMAZIONE</h2>
@@ -2612,8 +2658,8 @@ function App() {
               </div>
             </div>
 
-            {/* Suggerimenti Intelligenti (50%) */}
-            <div className="h-[50%] flex flex-col min-h-0">
+            {/* Suggerimenti Intelligenti */}
+            <div className={`${isMobile ? 'min-h-[300px]' : 'h-[50%]'} flex flex-col min-h-0`}>
               <div className="p-3 border-b border-gray-200 flex-shrink-0">
                 <h2 className="text-sm font-semibold text-gray-900">SUGGERIMENTI INTELLIGENTI</h2>
               </div>
