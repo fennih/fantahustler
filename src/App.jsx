@@ -1254,81 +1254,81 @@ function App() {
     <div className="min-h-screen bg-gray-50 flex flex-col overflow-x-hidden">
       {/* Header */}
       <div className="bg-white shadow-sm border-b border-gray-200 px-3 sm:px-6 py-2 sm:py-4">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center space-x-2 sm:space-x-4">
-            <div className="flex items-center space-x-2 sm:space-x-3">
-              <h1 className="text-lg sm:text-2xl font-bold text-gray-900">FANTAHUSTLER</h1>
-              {/* Scudetto Team Eno */}
-              <div className="flex items-center bg-white border-2 border-red-500 px-3 py-1 rounded-lg shadow-lg">
-                <svg 
-                  className="w-6 h-6 mr-2" 
-                  viewBox="0 0 100 100" 
+        <div className="flex items-start justify-between gap-3">
+          {/* Logo e Team - Layout mobile ottimizzato */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-3">
+            <h1 className="text-lg sm:text-2xl font-bold text-gray-900">FANTAHUSTLER</h1>
+            {/* Scudetto Team Eno - Sotto su mobile */}
+            <div className="flex items-center bg-white border-2 border-red-500 px-2 py-0.5 sm:px-3 sm:py-1 rounded-lg shadow-lg mt-1 sm:mt-0 w-fit">
+              <svg 
+                className="w-4 h-4 sm:w-6 sm:h-6 mr-1 sm:mr-2" 
+                viewBox="0 0 100 100" 
+                fill="none"
+              >
+                {/* Scudetto outline */}
+                <path 
+                  d="M50 5 L85 20 L85 60 C85 75 50 90 50 90 C50 90 15 75 15 60 L15 20 Z" 
+                  fill="white" 
+                  stroke="#EF4444" 
+                  strokeWidth="3"
+                />
+                {/* Inner shield */}
+                <path 
+                  d="M50 15 L75 25 L75 55 C75 65 50 75 50 75 C50 75 25 65 25 55 L25 25 Z" 
+                  fill="white" 
+                  stroke="#EF4444" 
+                  strokeWidth="2"
+                />
+                {/* Baseball player figure */}
+                <g fill="#EF4444">
+                  {/* Head */}
+                  <circle cx="45" cy="35" r="4"/>
+                  {/* Body */}
+                  <ellipse cx="45" cy="45" rx="3" ry="6"/>
+                  {/* Left arm with bat */}
+                  <path d="M42 40 L35 35 L34 37 L41 42 Z"/>
+                  {/* Bat */}
+                  <rect x="32" y="33" width="8" height="1.5" rx="0.5"/>
+                  {/* Right arm */}
+                  <path d="M48 42 L53 38 L52 36 L47 40 Z"/>
+                  {/* Left leg */}
+                  <ellipse cx="42" cy="55" rx="2" ry="5" transform="rotate(-15 42 55)"/>
+                  {/* Right leg */}
+                  <ellipse cx="48" cy="55" rx="2" ry="5" transform="rotate(15 48 55)"/>
+                </g>
+                {/* Letter E */}
+                <path 
+                  d="M60 35 L60 55 L68 55 M60 35 L67 35 M60 45 L65 45" 
+                  stroke="#EF4444" 
+                  strokeWidth="2" 
                   fill="none"
-                >
-                  {/* Scudetto outline */}
-                  <path 
-                    d="M50 5 L85 20 L85 60 C85 75 50 90 50 90 C50 90 15 75 15 60 L15 20 Z" 
-                    fill="white" 
-                    stroke="#EF4444" 
-                    strokeWidth="3"
-                  />
-                  {/* Inner shield */}
-                  <path 
-                    d="M50 15 L75 25 L75 55 C75 65 50 75 50 75 C50 75 25 65 25 55 L25 25 Z" 
-                    fill="white" 
-                    stroke="#EF4444" 
-                    strokeWidth="2"
-                  />
-                  {/* Baseball player figure */}
-                  <g fill="#EF4444">
-                    {/* Head */}
-                    <circle cx="45" cy="35" r="4"/>
-                    {/* Body */}
-                    <ellipse cx="45" cy="45" rx="3" ry="6"/>
-                    {/* Left arm with bat */}
-                    <path d="M42 40 L35 35 L34 37 L41 42 Z"/>
-                    {/* Bat */}
-                    <rect x="32" y="33" width="8" height="1.5" rx="0.5"/>
-                    {/* Right arm */}
-                    <path d="M48 42 L53 38 L52 36 L47 40 Z"/>
-                    {/* Left leg */}
-                    <ellipse cx="42" cy="55" rx="2" ry="5" transform="rotate(-15 42 55)"/>
-                    {/* Right leg */}
-                    <ellipse cx="48" cy="55" rx="2" ry="5" transform="rotate(15 48 55)"/>
-                  </g>
-                  {/* Letter E */}
-                  <path 
-                    d="M60 35 L60 55 L68 55 M60 35 L67 35 M60 45 L65 45" 
-                    stroke="#EF4444" 
-                    strokeWidth="2" 
-                    fill="none"
-                    strokeLinecap="round"
-                  />
-                </svg>
-                <span className="text-sm font-bold text-red-500">TEAM ENO</span>
-              </div>
+                  strokeLinecap="round"
+                />
+              </svg>
+              <span className="text-xs sm:text-sm font-bold text-red-500">TEAM ENO</span>
             </div>
-            {/* Budget - Layout mobile ottimizzato */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 space-y-1 sm:space-y-0">
-              <div className="flex items-center space-x-2">
-                <span className="text-xs font-medium text-gray-500">BUDGET:</span>
-                <span className={`text-lg font-bold ${budget < 50 ? 'text-red-600' : 'text-green-600'}`}>
-                  {budget}/{budgetMax} FM
+          </div>
+
+          {/* Budget - Layout mobile ottimizzato */}
+          <div className="flex flex-col space-y-1 text-right min-w-0 flex-shrink-0">
+            <div className="flex items-center justify-end space-x-2">
+              <span className="text-xs font-medium text-gray-500">BUDGET:</span>
+              <span className={`text-base sm:text-lg font-bold ${budget < 50 ? 'text-red-600' : 'text-green-600'}`}>
+                {budget}/{budgetMax} FM
+              </span>
+            </div>
+            <div className="flex items-center justify-end space-x-3 text-xs">
+              <div className="flex items-center space-x-1">
+                <span className="text-gray-500">Usato:</span>
+                <span className={`font-bold ${budgetMax - budget > budgetMax * 0.7 ? 'text-red-600' : 'text-blue-600'}`}>
+                  {budgetMax - budget} FM
                 </span>
               </div>
-              <div className="flex items-center justify-between sm:justify-start sm:space-x-4 text-xs">
-                <div className="flex items-center space-x-1">
-                  <span className="text-gray-500">Usato:</span>
-                  <span className={`font-bold ${budgetMax - budget > budgetMax * 0.7 ? 'text-red-600' : 'text-blue-600'}`}>
-                    {budgetMax - budget} FM
-                  </span>
-                </div>
-                <div className="flex items-center space-x-1">
-                  <span className="text-gray-500">Rimane:</span>
-                  <span className={`font-bold ${budget < 50 ? 'text-red-600' : 'text-green-600'}`}>
-                    {budget} FM
-                  </span>
-                </div>
+              <div className="flex items-center space-x-1">
+                <span className="text-gray-500">Rimane:</span>
+                <span className={`font-bold ${budget < 50 ? 'text-red-600' : 'text-green-600'}`}>
+                  {budget} FM
+                </span>
               </div>
             </div>
           </div>
