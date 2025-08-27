@@ -3,6 +3,8 @@ import { Search, Upload, Download, Filter, Users, Target, Eye } from 'lucide-rea
 import * as XLSX from 'xlsx';
 import PlayerStatsModal from './components/PlayerStatsModal.jsx';
 import TacticalFormation from './components/TacticalFormation.jsx';
+import SidebarPreferiti from './components/SidebarPreferiti.jsx';
+import SuggerimentiIntelligenti from './components/SuggerimentiIntelligenti.jsx';
 
 // Sistema ruoli MANTRA (completo dal file Excel)
 const RUOLI_MANTRA = {
@@ -126,8 +128,8 @@ const getFasciaGiocatore = (giocatoreId, fvm, fasceManuali, fasceFVM, ruolo, tut
   return { key: 'daEvitare', ...fasceFVM.daEvitare };
 };
 
-// Formula: (Ruoli necessari × 2) + 1
-const FORMULA_ROSA = "Per ogni ruolo nel modulo: (slot × 2) + 1 giocatore";
+// Formula: (slot × 2) + 1 per ogni ruolo + posizioni più offensive
+const FORMULA_ROSA = "Formula: (slot × 2) + 1 per ruolo | Preferenza per posizioni offensive (C>M, Pc>A)";
 
 // Moduli target selezionabili dall'utente - TUTTI i moduli MANTRA
 const MODULI_TARGET_DEFAULT = [
@@ -273,6 +275,7 @@ const STORAGE_KEYS = {
   MODULI_TARGET: 'mantra-asta-moduli-target', 
   ROSA: 'mantra-asta-rosa',
   PREZZI_PAGATI: 'mantra-asta-prezzi-pagati',
+  PREZZI_SUGGERITI: 'mantra-asta-prezzi-suggeriti',
   FASCE_MANUALI: 'mantra-asta-fasce-manuali',
   LARGHEZZA_LISTONE: 'mantra-asta-larghezza-listone',
   LARGHEZZA_ROSA: 'mantra-asta-larghezza-rosa',
@@ -315,12 +318,29 @@ function App() {
   const [ricerca, setRicerca] = useState('');
   const [ordinamento, setOrdinamento] = useState('FVM');
   
-  // Stati per il modal statistiche FBRef
+  // Stati per il modal statistiche
   const [statsModalOpen, setStatsModalOpen] = useState(false);
   const [selectedPlayerForStats, setSelectedPlayerForStats] = useState(null);
   const [prezziPagati, setPrezziPagati] = useState(() => caricaDaLocalStorage(STORAGE_KEYS.PREZZI_PAGATI, {}));
+  const [prezziSuggeriti, setPrezziSuggeriti] = useState(() => caricaDaLocalStorage(STORAGE_KEYS.PREZZI_SUGGERITI, {}));
+  const [assegnazioniRuoli, setAssegnazioniRuoli] = useState(() => caricaDaLocalStorage('assegnazioniRuoli', {})); // giocatore.id -> ruolo assegnato
   const [larghezzaListone, setLarghezzaListone] = useState(() => caricaDaLocalStorage(STORAGE_KEYS.LARGHEZZA_LISTONE, 40));
   const [larghezzaRosa, setLarghezzaRosa] = useState(() => caricaDaLocalStorage(STORAGE_KEYS.LARGHEZZA_ROSA, 55));
+  
+  // Stati per sidebar preferiti, suggerimenti intelligenti e scroll
+  const [sidebarPreferitiVisible, setSidebarPreferitiVisible] = useState(false);
+  // Stato responsivo per adattare il layout colonne su mobile
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+  const [focusedPlayerId, setFocusedPlayerId] = useState(null);
+  const [preferitiListoneVisible, setPreferitiListoneVisible] = useState(false);
+  const [showScrollToTop, setShowScrollToTop] = useState(false);
   
   // Definizioni fasce (senza range automatici)
   const fasceFVM = {
@@ -445,6 +465,10 @@ function App() {
   }, [prezziPagati]);
 
   useEffect(() => {
+    salvaInLocalStorage(STORAGE_KEYS.PREZZI_SUGGERITI, prezziSuggeriti);
+  }, [prezziSuggeriti]);
+
+  useEffect(() => {
     salvaInLocalStorage(STORAGE_KEYS.FASCE_MANUALI, fasceManuali);
   }, [fasceManuali]);
 
@@ -468,6 +492,10 @@ function App() {
     salvaInLocalStorage(STORAGE_KEYS.NOTE_GIOCATORI, noteGiocatori);
   }, [noteGiocatori]);
 
+  useEffect(() => {
+    salvaInLocalStorage('assegnazioniRuoli', assegnazioniRuoli);
+  }, [assegnazioniRuoli]);
+
   // Funzioni per gestione dati
   const esportaDatiAsta = () => {
     const datiAsta = {
@@ -475,6 +503,8 @@ function App() {
       moduliTarget,
       rosa,
       prezziPagati,
+      prezziSuggeriti,
+      assegnazioniRuoli,
       fasceManuali,
       larghezzaListone,
       larghezzaRosa,
@@ -508,6 +538,8 @@ function App() {
         if (datiAsta.moduliTarget) setModuliTarget(datiAsta.moduliTarget);
         if (datiAsta.rosa) setRosa(datiAsta.rosa);
         if (datiAsta.prezziPagati) setPrezziPagati(datiAsta.prezziPagati);
+        if (datiAsta.prezziSuggeriti) setPrezziSuggeriti(datiAsta.prezziSuggeriti);
+        if (datiAsta.assegnazioniRuoli) setAssegnazioniRuoli(datiAsta.assegnazioniRuoli);
         if (datiAsta.fasceManuali) setFasceManuali(datiAsta.fasceManuali);
         if (datiAsta.larghezzaListone !== undefined) setLarghezzaListone(datiAsta.larghezzaListone);
         if (datiAsta.larghezzaRosa !== undefined) setLarghezzaRosa(datiAsta.larghezzaRosa);
@@ -591,7 +623,177 @@ function App() {
     return noteGiocatori[key] || '';
   };
 
-  // Funzioni per gestire il modal statistiche FBRef
+  // Funzioni per gestione prezzi suggeriti personalizzati
+  const aggiornaPrezzosuggerito = (giocatore, nuovoPrezzo) => {
+    const key = `${giocatore.nome}_${giocatore.squadra}`;
+    if (nuovoPrezzo === '' || nuovoPrezzo === null || nuovoPrezzo === undefined) {
+      // Rimuovi prezzo personalizzato se vuoto
+      setPrezziSuggeriti(prev => {
+        const nuovo = { ...prev };
+        delete nuovo[key];
+        return nuovo;
+      });
+    } else {
+      setPrezziSuggeriti(prev => ({
+        ...prev,
+        [key]: parseInt(nuovoPrezzo) || 0
+      }));
+    }
+  };
+
+  // Funzioni per gestione assegnazioni ruoli
+  const assegnaGiocatoreARuolo = (giocatore, nuovoRuolo) => {
+    setAssegnazioniRuoli(prev => ({
+      ...prev,
+      [giocatore.id]: nuovoRuolo
+    }));
+  };
+
+  const rimuoviAssegnazioneRuolo = (giocatore) => {
+    setAssegnazioniRuoli(prev => {
+      const nuove = { ...prev };
+      delete nuove[giocatore.id];
+      return nuove;
+    });
+  };
+
+  const getRuoloAssegnato = (giocatore) => {
+    return assegnazioniRuoli[giocatore.id] || null;
+  };
+
+  // State e funzioni per drag and drop tra ruoli
+  const [draggedPlayer, setDraggedPlayer] = useState(null);
+  const [dragOverRole, setDragOverRole] = useState(null);
+
+  const handlePlayerDragStart = (e, giocatore) => {
+    setDraggedPlayer(giocatore);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleRoleDragOver = (e, ruolo) => {
+    e.preventDefault();
+    if (draggedPlayer && getTuttiRuoli(draggedPlayer.ruoloCompleto).includes(ruolo)) {
+      e.dataTransfer.dropEffect = 'move';
+      setDragOverRole(ruolo);
+    } else {
+      e.dataTransfer.dropEffect = 'none';
+    }
+  };
+
+  const handleRoleDragEnter = (e, ruolo) => {
+    e.preventDefault();
+    if (draggedPlayer && getTuttiRuoli(draggedPlayer.ruoloCompleto).includes(ruolo)) {
+      setDragOverRole(ruolo);
+    }
+  };
+
+  const handleRoleDragLeave = (e) => {
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+      setDragOverRole(null);
+    }
+  };
+
+  const handleRoleDrop = (e, ruolo) => {
+    e.preventDefault();
+    if (draggedPlayer && getTuttiRuoli(draggedPlayer.ruoloCompleto).includes(ruolo)) {
+      assegnaGiocatoreARuolo(draggedPlayer, ruolo);
+    }
+    setDraggedPlayer(null);
+    setDragOverRole(null);
+  };
+
+  const handlePlayerDragEnd = () => {
+    setDraggedPlayer(null);
+    setDragOverRole(null);
+  };
+
+  // Ottieni giocatori raggruppati per ruolo assegnato
+  const getGiocatoriPerRuolo = () => {
+    const raggruppamento = {};
+    
+    // Inizializza tutti i ruoli richiesti
+    Object.keys(rosaNecessaria.ruoli).forEach(ruolo => {
+      raggruppamento[ruolo] = [];
+    });
+    
+    // Raggruppa i giocatori senza duplicati
+    rosa.forEach(giocatore => {
+      const ruoloAssegnato = getRuoloAssegnato(giocatore);
+      
+      if (ruoloAssegnato && raggruppamento[ruoloAssegnato]) {
+        // Se ha un'assegnazione specifica, mettilo solo lì
+        raggruppamento[ruoloAssegnato].push(giocatore);
+      } else {
+        // Se non ha assegnazione, mettilo in tutti i ruoli che può ricoprire
+        const ruoliGiocatore = getTuttiRuoli(giocatore.ruoloCompleto);
+        ruoliGiocatore.forEach(ruolo => {
+          if (raggruppamento[ruolo]) {
+            raggruppamento[ruolo].push(giocatore);
+          }
+        });
+      }
+    });
+    
+    return raggruppamento;
+  };
+
+  const getPrezzoSuggerito = (giocatore) => {
+    const key = `${giocatore.nome}_${giocatore.squadra}`;
+    // Se c'è un prezzo personalizzato, usalo, altrimenti usa quello originale
+    return prezziSuggeriti[key] !== undefined 
+      ? prezziSuggeriti[key] 
+      : (giocatore.prezzoSuggerito || giocatore.FVM || 1);
+  };
+
+  // Funzione per calcolare la percentuale del budget
+  const calcolaPercentuale = (valore) => {
+    if (!valore || valore <= 0) return "0.0";
+    return ((valore / budgetMax) * 100).toFixed(1);
+  };
+
+  // Funzione per formattare prezzo con percentuale
+  const formatPrezzoConPercentuale = (valore) => {
+    const percentuale = calcolaPercentuale(valore);
+    return `${valore} FM (${percentuale}%)`;
+  };
+
+  // Funzione per evidenziare e scrollare a un giocatore specifico
+  const focusGiocatore = (giocatore) => {
+    const playerId = `${giocatore.nome}_${giocatore.squadra}`;
+    setFocusedPlayerId(playerId);
+    
+    // Rimuovi evidenziazione dopo 3 secondi
+    setTimeout(() => {
+      setFocusedPlayerId(null);
+    }, 3000);
+    
+    // Scroll a giocatore se non è visibile
+    setTimeout(() => {
+      const elemento = document.getElementById(`player-${playerId}`);
+      if (elemento) {
+        elemento.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'center' 
+        });
+      }
+    }, 100);
+    
+    // Imposta filtri per mostrare il giocatore
+    setTabAttiva('listone');
+    setFiltroRuolo('TUTTI');
+    setFiltroPreferiti('TUTTI');
+    setRicerca('');
+  };
+
+  // Crea array di giocatori preferiti con tutti i dati
+  const giocatoriPreferitiCompleti = useMemo(() => {
+    return listone.filter(giocatore => {
+      const key = `${giocatore.nome}_${giocatore.squadra}`;
+      return giocatoriPreferiti.includes(key);
+    });
+  }, [listone, giocatoriPreferiti]);
+
+  // Funzioni per gestire il modal statistiche
   const openPlayerStats = (giocatore) => {
     setSelectedPlayerForStats(giocatore);
     setStatsModalOpen(true);
@@ -602,36 +804,123 @@ function App() {
     setSelectedPlayerForStats(null);
   };
   
-  // Calcolo dinamico rosa necessaria per ruoli specifici
+
+  
+  // Calcolo dinamico rosa necessaria per ruoli specifici (32 giocatori totali)
   const rosaNecessaria = useMemo(() => {
-    const requisitiRuoli = {};
-    const requisitiLinee = {};
-    const requisitiOffensivi = {}; // Requisiti minimi per ruoli offensivi
-    
-    moduliTarget.forEach(modulo => {
-      const config = CONFIGURAZIONE_MODULI[modulo];
-      
-      // Calcola requisiti per ruoli specifici
-      Object.entries(config.ruoli).forEach(([ruolo, slot]) => {
-        if (!requisitiRuoli[ruolo]) requisitiRuoli[ruolo] = 0;
-        const necessari = (slot * 2) + 1;
-        requisitiRuoli[ruolo] = Math.max(requisitiRuoli[ruolo], necessari);
-        
-        // Se questo ruolo ha una versione più offensiva, calcola il minimo per quella
-        const ruoloOffensivo = RUOLO_OFFENSIVO_MAP[ruolo];
-        if (ruoloOffensivo) {
-          if (!requisitiOffensivi[ruoloOffensivo]) requisitiOffensivi[ruoloOffensivo] = 0;
-          requisitiOffensivi[ruoloOffensivo] = Math.max(requisitiOffensivi[ruoloOffensivo], necessari);
+    if (moduliTarget.length === 0) {
+      // Se nessun modulo selezionato, inizializza tutti i ruoli con 0 tranne Por
+      const ruoliBase = { 'Por': 3 };
+      Object.keys(RUOLI_MANTRA).forEach(ruolo => {
+        if (ruolo !== 'Por') {
+          ruoliBase[ruolo] = 0; // Tutti opzionali per flessibilità
         }
       });
       
-      // Mantieni anche i requisiti per linee (per la rosa generale)
-      Object.entries(config.linee).forEach(([linea, slot]) => {
-        if (!requisitiLinee[linea]) requisitiLinee[linea] = 0;
-        const necessari = (slot * 2) + 1;
-        requisitiLinee[linea] = Math.max(requisitiLinee[linea], necessari);
+      return {
+        ruoli: ruoliBase,
+        linee: { 'portiere': 3, 'difesa': 0, 'centrocampo': 0, 'attacco': 0, 'trequarti': 0 },
+        offensivi: {}
+      };
+    }
+
+    const modulo = moduliTarget[0]; // Usa il primo modulo selezionato
+    const config = CONFIGURAZIONE_MODULI[modulo];
+    
+    if (!config) {
+      // Se configurazione modulo non trovata, mostra tutti i ruoli con 0 tranne Por
+      const ruoliBase = { 'Por': 3 };
+      Object.keys(RUOLI_MANTRA).forEach(ruolo => {
+        if (ruolo !== 'Por') {
+          ruoliBase[ruolo] = 0; // Tutti opzionali per flessibilità
+        }
       });
+      
+      return {
+        ruoli: ruoliBase,
+        linee: { 'portiere': 3, 'difesa': 0, 'centrocampo': 0, 'attacco': 0, 'trequarti': 0 },
+        offensivi: {}
+      };
+    }
+
+    const requisitiRuoli = { 'Por': 3 }; // Sempre 3 portieri
+    const requisitiLinee = { 'portiere': 3 };
+    const requisitiOffensivi = {};
+    
+    // Inizializza tutti i ruoli MANTRA con 0 per flessibilità (eccetto Por)
+    Object.keys(RUOLI_MANTRA).forEach(ruolo => {
+      if (ruolo !== 'Por') {
+        requisitiRuoli[ruolo] = 0;
+      }
     });
+    
+    // Mappa per prioritizzare ruoli più offensivi
+    const ruoliOffensiviPreferiti = {
+      'M': 'C',     // Preferisci C invece di M
+      'Dc': 'Dc',   // Dc rimane Dc
+      'Dd': 'Dd',   // Dd rimane Dd  
+      'Ds': 'Ds',   // Ds rimane Ds
+      'A': 'Pc',    // Preferisci Pc invece di A dove possibile
+      'T': 'T',     // T rimane T
+      'C': 'C',     // C rimane C
+      'W': 'W',     // W rimane W
+      'E': 'E'      // E rimane E
+    };
+    
+    // Calcola i requisiti per ruoli usando la formula (slot × 2) + 1
+    Object.entries(config.ruoli).forEach(([ruolo, slot]) => {
+      if (ruolo !== 'Por') {
+        const ruoloPreferito = ruoliOffensiviPreferiti[ruolo] || ruolo;
+        const necessari = (slot * 2) + 1;
+        
+        // Usa il ruolo più offensivo possibile
+        if (!requisitiRuoli[ruoloPreferito]) {
+          requisitiRuoli[ruoloPreferito] = 0;
+        }
+        requisitiRuoli[ruoloPreferito] = Math.max(requisitiRuoli[ruoloPreferito], necessari);
+        
+        // Calcola anche requisiti per linee
+        const ruoloInfo = RUOLI_MANTRA[ruoloPreferito];
+        if (ruoloInfo) {
+          const linea = ruoloInfo.linea;
+          if (!requisitiLinee[linea]) requisitiLinee[linea] = 0;
+          requisitiLinee[linea] += necessari;
+        }
+      }
+    });
+    
+    // Aggiusta le linee per non superare 32 totali
+    const totaleRuoli = Object.values(requisitiRuoli).reduce((sum, val) => sum + val, 0);
+    if (totaleRuoli > 32) {
+      // Riduci proporzionalmente mantenendo i minimi
+      const eccesso = totaleRuoli - 32;
+      const ruoliRiducibili = Object.entries(requisitiRuoli)
+        .filter(([ruolo]) => ruolo !== 'Por' && requisitiRuoli[ruolo] > 3);
+      
+      let riduzione = eccesso;
+      ruoliRiducibili.forEach(([ruolo, valore]) => {
+        if (riduzione > 0) {
+          const riduzioneRuolo = Math.min(riduzione, valore - 3);
+          requisitiRuoli[ruolo] -= riduzioneRuolo;
+          riduzione -= riduzioneRuolo;
+        }
+      });
+    }
+    
+    // Ricalcola le linee basate sui ruoli finali
+    const nuoveLinee = { 'portiere': 3 };
+    Object.entries(requisitiRuoli).forEach(([ruolo, necessari]) => {
+      if (ruolo !== 'Por') {
+        const ruoloInfo = RUOLI_MANTRA[ruolo];
+        if (ruoloInfo) {
+          const linea = ruoloInfo.linea;
+          if (!nuoveLinee[linea]) nuoveLinee[linea] = 0;
+          nuoveLinee[linea] += necessari;
+        }
+      }
+    });
+    
+    Object.assign(requisitiLinee, nuoveLinee);
     
     return { ruoli: requisitiRuoli, linee: requisitiLinee, offensivi: requisitiOffensivi };
   }, [moduliTarget]);
@@ -642,19 +931,37 @@ function App() {
     const conteggioLinee = {};
     
     rosa.forEach(giocatore => {
-      const ruolo = RUOLI_MANTRA[giocatore.ruolo];
-      if (ruolo) {
-        // Conteggio per ruolo specifico
-        conteggioRuoli[giocatore.ruolo] = (conteggioRuoli[giocatore.ruolo] || 0) + 1;
+      // Se il giocatore ha un'assegnazione specifica, usa quella
+      const ruoloAssegnato = assegnazioniRuoli[giocatore.id];
+      
+      if (ruoloAssegnato) {
+        // Conta solo per il ruolo assegnato
+        const ruoloInfo = RUOLI_MANTRA[ruoloAssegnato];
+        if (ruoloInfo) {
+          conteggioRuoli[ruoloAssegnato] = (conteggioRuoli[ruoloAssegnato] || 0) + 1;
+          const linea = ruoloInfo.linea;
+          conteggioLinee[linea] = (conteggioLinee[linea] || 0) + 1;
+        }
+      } else {
+        // Conta il giocatore per TUTTI i ruoli che può ricoprire (comportamento predefinito)
+        const ruoliGiocatore = getTuttiRuoli(giocatore.ruoloCompleto);
         
-        // Conteggio per linea
-        const linea = ruolo.linea;
-        conteggioLinee[linea] = (conteggioLinee[linea] || 0) + 1;
+        ruoliGiocatore.forEach(ruoloSingolo => {
+          const ruoloInfo = RUOLI_MANTRA[ruoloSingolo];
+          if (ruoloInfo) {
+            // Conteggio per ruolo specifico
+            conteggioRuoli[ruoloSingolo] = (conteggioRuoli[ruoloSingolo] || 0) + 1;
+            
+            // Conteggio per linea
+            const linea = ruoloInfo.linea;
+            conteggioLinee[linea] = (conteggioLinee[linea] || 0) + 1;
+          }
+        });
       }
     });
     
     return { ruoli: conteggioRuoli, linee: conteggioLinee };
-  }, [rosa]);
+  }, [rosa, assegnazioniRuoli]);
 
   // Parser Excel per listone Fantacalcio
   const handleFileUpload = (event) => {
@@ -777,7 +1084,7 @@ function App() {
   // Aggiungi giocatore alla rosa con gestione prezzo pagato
   const aggiungiGiocatore = (giocatore) => {
     if (!rosa.find(g => g.id === giocatore.id)) {
-      const prezzoPagato = prezziPagati[giocatore.id] || giocatore.prezzoSuggerito || 1;
+      const prezzoPagato = prezziPagati[giocatore.id] || getPrezzoSuggerito(giocatore);
       setRosa([...rosa, giocatore]);
       setBudget(prev => prev - prezzoPagato);
     }
@@ -785,7 +1092,7 @@ function App() {
 
   // Rimuovi giocatore dalla rosa
   const rimuoviGiocatore = (giocatore) => {
-    const prezzoPagato = prezziPagati[giocatore.id] || giocatore.prezzoSuggerito || 1;
+    const prezzoPagato = prezziPagati[giocatore.id] || getPrezzoSuggerito(giocatore);
     setRosa(rosa.filter(g => g.id !== giocatore.id));
     setBudget(prev => prev + prezzoPagato);
     // Rimuovi anche il prezzo pagato memorizzato
@@ -798,7 +1105,7 @@ function App() {
 
   // Aggiorna prezzo pagato per un giocatore
   const aggiornaPrezzoGiocatore = (giocatore, nuovoPrezzo) => {
-    const vecchioPrezzo = prezziPagati[giocatore.id] || giocatore.prezzoSuggerito || 1;
+    const vecchioPrezzo = prezziPagati[giocatore.id] || getPrezzoSuggerito(giocatore);
     const differenza = nuovoPrezzo - vecchioPrezzo;
     
     setPrezziPagati(prev => ({
@@ -859,7 +1166,7 @@ function App() {
     
     carenzeCritiche.forEach(({ linea, mancanti, priorita }) => {
       // Suggerimenti specifici per fascia di prezzo
-      const budgetPerGiocatore = Math.floor(budgetRimanente / Math.max(1, (25 - giocatoriRosa)));
+      const budgetPerGiocatore = Math.floor(budgetRimanente / Math.max(1, (32 - giocatoriRosa)));
       let fasciaConsigliata = 'Buoni';
       
       if (budgetPerGiocatore > 40) fasciaConsigliata = 'Top o Supertop';
@@ -893,8 +1200,8 @@ function App() {
     }
 
     // Suggerimenti di bilanciamento budget
-    if (giocatoriRosa >= 10) {
-      const budgetMedio = budgetRimanente / Math.max(1, (25 - giocatoriRosa));
+    if (giocatoriRosa >= 15) {
+      const budgetMedio = budgetRimanente / Math.max(1, (32 - giocatoriRosa));
       if (budgetMedio < 8) {
         suggerimentiList.push({
           tipo: 'budget',
@@ -931,10 +1238,10 @@ function App() {
     }
 
     // Suggerimento finale
-    if (giocatoriRosa >= 20) {
+    if (giocatoriRosa >= 28) {
       suggerimentiList.push({
         tipo: 'finale',
-        messaggio: `🏁 Quasi finito! Completa con gli ultimi ${25 - giocatoriRosa} giocatori più convenienti`,
+        messaggio: `🏁 Quasi finito! Completa con gli ultimi ${32 - giocatoriRosa} giocatori più convenienti`,
         priorita: 'bassa'
       });
     }
@@ -943,7 +1250,7 @@ function App() {
   }, [rosaNecessaria, conteggioRosa, rosa, budget]);
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-gray-50 flex flex-col overflow-x-hidden">
       {/* Header */}
       <div className="bg-white shadow-sm border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
@@ -1000,16 +1307,43 @@ function App() {
                 <span className="text-sm font-bold text-red-500">TEAM ENO</span>
               </div>
             </div>
-            <div className="flex items-center space-x-2">
-              <span className="text-sm font-medium text-gray-500">BUDGET:</span>
-              <span className={`text-lg font-bold ${budget < 50 ? 'text-red-600' : 'text-green-600'}`}>
-                {budget}/{budgetMax}
-              </span>
+            <div className="flex items-center space-x-4 flex-wrap gap-2">
+              <div className="flex items-center space-x-2">
+                <span className="text-xs sm:text-sm font-medium text-gray-500">BUDGET:</span>
+                <span className={`text-xl sm:text-lg font-bold ${budget < 50 ? 'text-red-600' : 'text-green-600'}`}>
+                  {budget}/{budgetMax} FM
+                </span>
+              </div>
+              <div className="flex items-center space-x-2 text-xs sm:text-sm">
+                <span className="text-gray-500">Utilizzato:</span>
+                <span className={`font-bold ${budgetMax - budget > budgetMax * 0.7 ? 'text-red-600' : 'text-blue-600'}`}>
+                  {budgetMax - budget} FM ({calcolaPercentuale(budgetMax - budget)}%)
+                </span>
+              </div>
+              <div className="flex items-center space-x-2 text-xs sm:text-sm">
+                <span className="text-gray-500">Rimanente:</span>
+                <span className={`font-bold ${budget < 50 ? 'text-red-600' : 'text-green-600'}`}>
+                  {budget} FM ({calcolaPercentuale(budget)}%)
+                </span>
+              </div>
             </div>
           </div>
           
           {/* Controlli Persistenza */}
           <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setSidebarPreferitiVisible(!sidebarPreferitiVisible)}
+              className={`px-3 py-1 text-sm rounded transition-colors flex items-center space-x-1 ${
+                sidebarPreferitiVisible 
+                  ? 'bg-pink-600 text-white hover:bg-pink-700' 
+                  : 'bg-pink-100 text-pink-700 hover:bg-pink-200'
+              }`}
+              title="Mostra/Nascondi preferiti"
+            >
+              <span>❤️</span>
+              <span>Preferiti ({giocatoriPreferitiCompleti.length})</span>
+            </button>
+            
             <button
               onClick={esportaDatiAsta}
               className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
@@ -1078,9 +1412,9 @@ function App() {
         </div>
       </div>
 
-      <div className="flex flex-1">
+      <div className="flex flex-1 flex-col md:flex-row">
         {/* Sezione Listone/Scartati (dinamica %) */}
-        <div className="flex flex-col bg-white border-r border-gray-200" style={{ width: `${larghezzaListone}%` }}>
+        <div className="flex flex-col bg-white border-r border-gray-200" style={{ width: isMobile ? '100%' : `${larghezzaListone}%` }}>
           {/* Header con Tab */}
           <div className="p-4 border-b border-gray-200">
             <div className="flex items-center justify-between mb-4">
@@ -1259,7 +1593,17 @@ function App() {
                   </button>
                   
                   <button
-                    onClick={() => setFiltroPreferiti('PREFERITI')}
+                    onClick={() => {
+                      if (filtroPreferiti === 'PREFERITI') {
+                        setFiltroPreferiti('TUTTI');
+                        setPreferitiListoneVisible(false);
+                        setShowScrollToTop(false);
+                      } else {
+                        setFiltroPreferiti('PREFERITI');
+                        setPreferitiListoneVisible(true);
+                        setShowScrollToTop(true);
+                      }
+                    }}
                     className={`px-3 py-1 text-sm font-medium rounded ${
                       filtroPreferiti === 'PREFERITI'
                         ? 'bg-pink-600 text-white'
@@ -1267,7 +1611,7 @@ function App() {
                     }`}
                     title="Solo giocatori preferiti"
                   >
-                    ❤️ PREFERITI ({giocatoriPreferiti.length})
+                    ❤️ PREFERITI ({giocatoriPreferiti.length}) {filtroPreferiti === 'PREFERITI' ? '▼' : '▶'}
                   </button>
                   
                   <button
@@ -1295,10 +1639,7 @@ function App() {
                     </div>
                   ))}
                 </div>
-                <div className="text-xs text-gray-500 mt-2">
-                  🔄 <strong>Auto</strong>: FVM ≥300→S, ≥200→T, ≥100→B, ≥50→C, &lt;50→D<br/>
-                  ✏️ <strong>Manuale</strong>: Clicca sui badge colorati per modificare
-                </div>
+
               </div>
             </div>
 
@@ -1329,131 +1670,312 @@ function App() {
           <div className="flex-1 overflow-y-auto">
             {/* Contenuto condizionale in base alla tab attiva */}
             {tabAttiva === 'listone' ? (
-              listoneFiltered.length > 0 ? (
-                listoneFiltered.map(giocatore => {
+              <>
+                {/* Sezione PREFERITI in evidenza */}
+                {giocatoriPreferitiCompleti.length > 0 && preferitiListoneVisible && (
+                  <div className="bg-gradient-to-r from-pink-500 to-red-500 text-white p-4 border-b-4 border-pink-600">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-lg font-bold flex items-center">
+                        <span className="mr-2">❤️</span>
+                        I TUOI PREFERITI ({giocatoriPreferitiCompleti.length})
+                      </h3>
+                      <button
+                        onClick={() => setSidebarPreferitiVisible(true)}
+                        className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded text-sm transition-colors"
+                      >
+                        Gestisci →
+                      </button>
+                    </div>
+                    
+                    <div className="grid gap-2">
+                      {giocatoriPreferitiCompleti
+                        .sort((a, b) => {
+                          // Prima giocatori con note, poi per FVM
+                          const aNota = getNoteGiocatore(a);
+                          const bNota = getNoteGiocatore(b);
+                          if (aNota && !bNota) return -1;
+                          if (!aNota && bNota) return 1;
+                          return (b.FVM || 0) - (a.FVM || 0);
+                        })
+                        .slice(0, 5) // Mostra solo i primi 5
+                        .map(giocatore => {
+                          const nota = getNoteGiocatore(giocatore);
+                          const inRosa = rosa.some(g => g.id === giocatore.id);
+                          
+                          return (
+                            <div
+                              key={giocatore.id}
+                              className={`bg-white/10 backdrop-blur rounded-lg p-3 hover:bg-white/20 cursor-pointer transition-all ${
+                                inRosa ? 'opacity-50 bg-green-400/20' : ''
+                              }`}
+                              onClick={() => focusGiocatore(giocatore)}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-3">
+                                  <div className="flex items-center space-x-1">
+                                    {getTuttiRuoli(giocatore.ruoloCompleto).map((ruoloSingolo, index) => {
+                                      const ruoloInfo = RUOLI_MANTRA[ruoloSingolo];
+                                      if (!ruoloInfo) return null;
+                                      return (
+                                        <span 
+                                          key={index}
+                                          className="px-2 py-1 text-xs font-bold bg-white text-gray-800 rounded shadow"
+                                        >
+                                          {ruoloInfo.sigla}
+                                        </span>
+                                      );
+                                    })}
+                                  </div>
+                                  <div>
+                                    <div className="font-semibold">{giocatore.nome}</div>
+                                    <div className="text-sm opacity-90">{giocatore.squadra} • FVM: {giocatore.FVM || 'N/A'}</div>
+                                    {nota && (
+                                      <div className="text-sm bg-yellow-400 text-yellow-900 px-2 py-1 rounded mt-1 font-medium">
+                                        📝 {nota}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                                
+                                <div className="text-right">
+                                  {inRosa ? (
+                                    <span className="text-sm bg-green-400 text-green-900 px-2 py-1 rounded font-bold">
+                                      IN ROSA
+                                    </span>
+                                  ) : (
+                                    <div>
+                                      <div className="bg-green-50 border border-green-200 rounded-lg p-2">
+                                        <div className="text-xs text-green-700 font-medium mb-1">Suggerito:</div>
+                                        <div className="flex items-center justify-between">
+                                          <input
+                                            type="number"
+                                            value={getPrezzoSuggerito(giocatore)}
+                                            onChange={(e) => {
+                                              e.stopPropagation();
+                                              aggiornaPrezzosuggerito(giocatore, e.target.value);
+                                            }}
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="w-16 text-lg font-bold text-center bg-white border border-green-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                            min="1"
+                                            max="999"
+                                          />
+                                          <span className="text-sm font-medium text-green-700">FM</span>
+                                        </div>
+                                        <div className="text-xs text-green-600 font-medium text-center mt-1">
+                                          ({calcolaPercentuale(getPrezzoSuggerito(giocatore))}% budget)
+                                        </div>
+                                      </div>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          aggiungiGiocatore(giocatore);
+                                        }}
+                                        className="text-xs bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded transition-colors mt-1"
+                                      >
+                                        + ACQUISTA
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      
+                      {giocatoriPreferitiCompleti.length > 5 && (
+                        <div className="text-center py-2">
+                          <button
+                            onClick={() => setSidebarPreferitiVisible(true)}
+                            className="text-sm bg-white/20 hover:bg-white/30 px-3 py-1 rounded transition-colors"
+                          >
+                            Vedi tutti i {giocatoriPreferitiCompleti.length} preferiti →
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Lista principale */}
+                <div className={giocatoriPreferitiCompleti.length > 0 ? 'pt-4' : ''}>
+                  {listoneFiltered.length > 0 ? (
+                    listoneFiltered.map(giocatore => {
                 const ruolo = RUOLI_MANTRA[giocatore.ruolo];
                 const inRosa = rosa.some(g => g.id === giocatore.id);
+                const playerId = `${giocatore.nome}_${giocatore.squadra}`;
+                const isFocused = focusedPlayerId === playerId;
+                
+                const isPreferito = isGiocatorePreferito(giocatore);
+                const notaGiocatore = getNoteGiocatore(giocatore);
                 
                 return (
                   <div
                     key={giocatore.id}
-                    className={`p-4 border-b border-gray-100 hover:bg-gray-50 ${
-                      inRosa ? 'bg-green-50' : ''
+                    id={`player-${playerId}`}
+                    className={`p-4 border-b border-gray-100 hover:bg-gray-50 transition-all duration-300 ${
+                      inRosa ? 'bg-green-50 border-l-4 border-green-400' : 
+                      isPreferito ? 'bg-gradient-to-r from-pink-50 to-red-50 border-l-4 border-pink-400 shadow-sm' : ''
+                    } ${
+                      isFocused ? 'bg-yellow-200 ring-2 ring-yellow-400 ring-opacity-75 shadow-lg transform scale-[1.02]' : ''
                     }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-4 flex-1">
-                        {/* Badge Ruoli - Più grandi e visibili */}
-                        <div className="flex items-center space-x-1.5 flex-wrap">
-                          {getTuttiRuoli(giocatore.ruoloCompleto).map((ruoloSingolo, index) => {
-                            const ruoloInfo = RUOLI_MANTRA[ruoloSingolo];
-                            if (!ruoloInfo) return null;
-                            return (
-                              <span 
-                                key={index}
-                                className={`px-2.5 py-1 text-sm font-bold text-white rounded-md shadow-sm ${ruoloInfo.colore}`}
-                              >
-                                {ruoloInfo.sigla}
-                              </span>
-                            );
-                          })}
+                    <div className="flex items-center space-x-3 flex-wrap">
+                      {/* Badge Ruoli - Compatti a sinistra */}
+                      <div className="flex items-center space-x-1 flex-shrink-0">
+                        {getTuttiRuoli(giocatore.ruoloCompleto).map((ruoloSingolo, index) => {
+                          const ruoloInfo = RUOLI_MANTRA[ruoloSingolo];
+                          if (!ruoloInfo) return null;
+                          return (
+                            <span 
+                              key={index}
+                              className={`px-2 py-1 text-xs font-bold text-white rounded-md shadow-sm ${ruoloInfo.colore}`}
+                            >
+                              {ruoloInfo.sigla}
+                            </span>
+                          );
+                        })}
+                      </div>
+                      
+                      {/* Nome e squadra - spazio centrale */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center space-x-2">
+                          <div className={`font-semibold text-base truncate ${
+                            isPreferito ? 'text-pink-900' : 'text-gray-900'
+                          }`}>
+                            {giocatore.nome}
+                          </div>
+                          {isPreferito && (
+                            <span className="text-pink-500 text-sm animate-pulse" title="Preferito">❤️</span>
+                          )}
+                          {notaGiocatore && (
+                            <span className="bg-yellow-400 text-yellow-900 px-1.5 py-0.5 rounded text-xs font-bold" title={`Note: ${notaGiocatore}`}>
+                              📝 NOTA
+                            </span>
+                          )}
                         </div>
-                        <div className="flex items-center space-x-3 flex-1">
-                          <div className="flex-1">
-                            <div className="font-semibold text-gray-900 text-base">{giocatore.nome}</div>
-                            <div className="text-sm text-gray-600 font-medium">{giocatore.squadra}</div>
-                          </div>
-                          {/* Badge Preferito */}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleGiocatorePreferito(giocatore);
-                            }}
-                            className={`p-1.5 rounded-full transition-all hover:scale-110 ${
-                              isGiocatorePreferito(giocatore)
-                                ? 'text-pink-500 hover:text-pink-600 scale-125 opacity-100 shadow-lg shadow-pink-500/50'
-                                : 'text-gray-400 hover:text-pink-400 opacity-30 hover:opacity-70'
-                            }`}
-                            title={isGiocatorePreferito(giocatore) ? 'Rimuovi dai preferiti' : 'Aggiungi ai preferiti'}
-                          >
-                            <span className={`transition-all duration-300 ${
-                              isGiocatorePreferito(giocatore) ? 'text-2xl animate-bounce' : 'text-lg'
-                            }`}>❤️</span>
-                          </button>
-                          {/* Badge Fascia cliccabile accanto al nome */}
-                          <div className="relative">
-                            {(() => {
-                              const fascia = getFasciaGiocatore(giocatore.id, giocatore.fvm, fasceManuali, fasceFVM, giocatore.ruolo, listone);
-                              const isDropdownOpen = dropdownFasciaAperto[giocatore.id];
-                              
-                              return (
-                                <>
-                                  {/* Badge cliccabile */}
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setDropdownFasciaAperto(prev => ({
-                                        ...prev,
-                                        [giocatore.id]: !prev[giocatore.id]
-                                      }));
-                                    }}
-                                    className={`px-2 py-1 text-sm font-bold text-white rounded hover:opacity-80 transition-opacity shadow-sm ${fascia.colore}`}
-                                    title={`Fascia: ${fascia.nome} (clicca per cambiare)`}
-                                  >
-                                    {fascia.sigla}
-                                  </button>
-                                  
-                                  {/* Dropdown nascosto di default */}
-                                  {isDropdownOpen && (
-                                    <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded shadow-lg z-50 min-w-32">
-                                      {Object.entries(fasceFVM).map(([key, fasciaOpt]) => (
-                                        <button
-                                          key={key}
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setFasceManuali(prev => ({
-                                              ...prev,
-                                              [giocatore.id]: key
-                                            }));
-                                            setDropdownFasciaAperto(prev => ({
-                                              ...prev,
-                                              [giocatore.id]: false
-                                            }));
-                                          }}
-                                          className={`w-full text-left px-2 py-1 text-xs hover:bg-gray-100 flex items-center space-x-2 ${
-                                            fascia.key === key ? 'bg-gray-100' : ''
-                                          }`}
-                                        >
-                                          <div className={`w-3 h-3 rounded ${fasciaOpt.colore}`}></div>
-                                          <span>{fasciaOpt.nome}</span>
-        </button>
-                                      ))}
-                                    </div>
-                                  )}
-                                </>
-                              );
-                            })()}
-                          </div>
+                        <div className={`text-sm font-medium ${
+                          isPreferito ? 'text-pink-700' : 'text-gray-600'
+                        }`}>
+                          {giocatore.squadra}
                         </div>
                       </div>
-                      <div className="text-right flex flex-col items-end space-y-2 min-w-[120px]">
-                        {/* Statistiche più grandi e leggibili */}
-                        <div className="bg-gray-50 px-3 py-1.5 rounded-md">
-                          <div className="text-sm font-semibold text-gray-700">FVM: <span className="text-blue-600">{giocatore.fvm || 0}</span></div>
-                          <div className="text-sm font-semibold text-gray-700">QA: <span className="text-orange-600">{giocatore.qa || 0}</span></div>
+                      
+                      {/* Cuore e Fascia a destra del nome */}
+                      <div className="flex items-center space-x-2 flex-shrink-0">
+                        {/* Badge Preferito */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleGiocatorePreferito(giocatore);
+                          }}
+                          className={`p-1 rounded-full transition-all hover:scale-110 ${
+                            isGiocatorePreferito(giocatore)
+                              ? 'text-pink-500 hover:text-pink-600 scale-110 opacity-100'
+                              : 'text-gray-400 hover:text-pink-400 opacity-40 hover:opacity-70'
+                          }`}
+                          title={isGiocatorePreferito(giocatore) ? 'Rimuovi dai preferiti' : 'Aggiungi ai preferiti'}
+                        >
+                          <span className={`transition-all duration-300 ${
+                            isGiocatorePreferito(giocatore) ? 'text-lg' : 'text-sm'
+                          }`}>❤️</span>
+                        </button>
+                        
+                        {/* Badge Fascia */}
+                        <div className="relative">
+                          {(() => {
+                            const fascia = getFasciaGiocatore(giocatore.id, giocatore.fvm, fasceManuali, fasceFVM, giocatore.ruolo, listone);
+                            const isDropdownOpen = dropdownFasciaAperto[giocatore.id];
+                            
+                            return (
+                              <>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDropdownFasciaAperto(prev => ({
+                                      ...prev,
+                                      [giocatore.id]: !prev[giocatore.id]
+                                    }));
+                                  }}
+                                  className={`px-3 py-1.5 text-sm font-bold text-white rounded hover:opacity-80 transition-opacity shadow-sm ${fascia.colore}`}
+                                  title={`Fascia: ${fascia.nome} (clicca per cambiare)`}
+                                >
+                                  {fascia.sigla}
+                                </button>
+                                
+                                {isDropdownOpen && (
+                                  <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded shadow-lg z-50 min-w-32">
+                                    {Object.entries(fasceFVM).map(([key, fasciaOpt]) => (
+                                      <button
+                                        key={key}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setFasceManuali(prev => ({
+                                            ...prev,
+                                            [giocatore.id]: key
+                                          }));
+                                          setDropdownFasciaAperto(prev => ({
+                                            ...prev,
+                                            [giocatore.id]: false
+                                          }));
+                                        }}
+                                        className={`w-full text-left px-2 py-1 text-xs hover:bg-gray-100 flex items-center space-x-2 ${
+                                          fascia.key === key ? 'bg-gray-100' : ''
+                                        }`}
+                                      >
+                                        <div className={`w-3 h-3 rounded ${fasciaOpt.colore}`}></div>
+                                        <span>{fasciaOpt.nome}</span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                      {/* Sezione prezzi e statistiche - Più spazio e visibilità */}
+                      <div className="flex flex-col items-end space-y-2 min-w-[180px] sm:min-w-[180px] min-w-0 w-full sm:w-auto">
+                        {/* Statistiche compatte */}
+                        <div className="bg-gray-50 px-2 py-1 rounded text-xs">
+                          <span className="text-gray-600">FVM: <span className="font-bold text-blue-600">{giocatore.fvm || 0}</span></span>
+                          <span className="ml-3 text-gray-600">QA: <span className="font-bold text-orange-600">{giocatore.qa || 0}</span></span>
                         </div>
                         {inRosa ? (
-                          <div className="text-xl font-bold text-blue-600 bg-blue-50 px-3 py-2 rounded-md">
-                            {prezziPagati[giocatore.id] || giocatore.prezzoSuggerito || 1}
+                          <div className="flex flex-col items-end space-y-1">
+                            <div className="text-xl font-bold text-blue-600 bg-blue-50 px-3 py-2 rounded-md">
+                              {prezziPagati[giocatore.id] || getPrezzoSuggerito(giocatore)} FM
+                            </div>
+                            <div className="text-xs text-blue-700 font-medium">
+                              ({calcolaPercentuale(prezziPagati[giocatore.id] || getPrezzoSuggerito(giocatore))}% budget)
+                            </div>
                           </div>
                         ) : (
-                          <div className="flex flex-col items-end space-y-1">
-                            <div className="text-sm text-green-600 font-semibold bg-green-50 px-2 py-1 rounded">
-                              Suggerito: <span className="font-bold">{giocatore.prezzoSuggerito}</span>
+                          <div className="flex flex-col items-end space-y-2 w-full">
+                            {/* Prezzo Suggerito - Più visibile */}
+                            <div className="bg-green-50 border border-green-200 rounded-lg p-2 w-full">
+                              <div className="text-xs text-green-700 font-medium mb-1">Suggerito:</div>
+                              <div className="flex items-center justify-between">
+                                <input
+                                  type="number"
+                                  value={getPrezzoSuggerito(giocatore)}
+                                  onChange={(e) => {
+                                    e.stopPropagation();
+                                    aggiornaPrezzosuggerito(giocatore, e.target.value);
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="w-20 text-lg font-bold text-center bg-white border border-green-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                  min="1"
+                                  max="999"
+                                />
+                                <span className="text-sm font-medium text-green-700">FM</span>
+                              </div>
+                              <div className="text-xs text-green-600 font-medium text-center mt-1">
+                                ({calcolaPercentuale(getPrezzoSuggerito(giocatore))}% budget)
+                              </div>
                             </div>
                             <input
                               type="number"
-                              placeholder={giocatore.prezzoSuggerito || 1}
+                              placeholder={getPrezzoSuggerito(giocatore)}
                               value={prezziPagati[giocatore.id] || ''}
                               onChange={(e) => {
                                 const valore = parseInt(e.target.value) || '';
@@ -1484,10 +2006,10 @@ function App() {
                                 e.stopPropagation();
                                 openPlayerStats(giocatore);
                               }}
-                              className="px-3 py-2 text-sm bg-purple-500 text-white rounded-md hover:bg-purple-600 transition-colors shadow-sm font-medium"
-                              title="Vedi statistiche dettagliate da FBRef"
+                              className="px-3 py-2 text-sm text-white rounded-md transition-colors shadow-sm font-medium bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
+                              title="📊 Visualizza statistiche giocatore"
                             >
-                              📊 Statistiche
+📊 Stats
                             </button>
                           </div>
                         ) : (
@@ -1535,30 +2057,54 @@ function App() {
                                 e.stopPropagation();
                                 openPlayerStats(giocatore);
                               }}
-                              className="px-2 py-1.5 text-xs bg-purple-500 text-white rounded hover:bg-purple-600 transition-colors shadow-sm font-medium w-full"
-                              title="Vedi statistiche dettagliate da FBRef"
+                              className="px-2 py-1.5 text-xs text-white rounded transition-colors shadow-sm font-medium w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
+                              title="📊 Visualizza statistiche giocatore"
                             >
-                              📊 Statistiche
+📊 Stats
                             </button>
                           </div>
                         )}
                       </div>
                     </div>
                     {/* Campo Note - Nuova riga */}
-                    <div className="mt-3 pt-3 border-t border-gray-100">
+                    <div className={`mt-3 pt-3 border-t ${
+                      isPreferito ? 'border-pink-200' : 'border-gray-100'
+                    }`}>
                       <div className="flex items-center space-x-2">
-                        <span className="text-xs font-medium text-gray-500 min-w-[35px]">Note:</span>
+                        <div className="flex items-center space-x-1">
+                          <span className={`text-xs font-medium ${
+                            isPreferito ? 'text-pink-600' : 'text-gray-500'
+                          } min-w-[35px]`}>
+                            Note:
+                          </span>
+                          {notaGiocatore && (
+                            <span className="text-yellow-600 text-sm" title="Ha note">📝</span>
+                          )}
+                        </div>
                         <input
                           type="text"
-                          placeholder="Aggiungi note personali..."
-                          value={getNoteGiocatore(giocatore)}
+                          placeholder={isPreferito ? "Note per l'asta..." : "Aggiungi note personali..."}
+                          value={notaGiocatore}
                           onChange={(e) => {
                             aggiornaNoteGiocatore(giocatore, e.target.value);
                           }}
                           onClick={(e) => e.stopPropagation()}
-                          className="flex-1 px-2 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
+                          className={`flex-1 px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 ${
+                            isPreferito 
+                              ? 'border-pink-300 focus:ring-pink-400 focus:border-pink-400 bg-pink-50' 
+                              : 'border-gray-200 focus:ring-blue-400 focus:border-blue-400'
+                          }`}
                         />
                       </div>
+                      {/* Mostra note esistenti in modo prominente per preferiti */}
+                      {isPreferito && notaGiocatore && (
+                        <div className="mt-2 p-2 bg-yellow-100 border border-yellow-300 rounded text-xs">
+                          <div className="flex items-start space-x-1">
+                            <span className="text-yellow-600">🎯</span>
+                            <span className="font-medium text-yellow-800">{notaGiocatore}</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -1574,7 +2120,9 @@ function App() {
                     }
                   </p>
                 </div>
-              )
+              )}
+                </div>
+              </>
             ) : (
               // Tab SCARTATI
               giocatoriScartatiFiltered.length > 0 ? (
@@ -1649,8 +2197,26 @@ function App() {
                             <div className="text-sm font-semibold text-gray-700">FVM: <span className="text-blue-600">{giocatore.fvm || 0}</span></div>
                             <div className="text-sm font-semibold text-gray-700">QA: <span className="text-orange-600">{giocatore.qa || 0}</span></div>
                           </div>
-                          <div className="text-sm text-gray-600 font-semibold bg-red-100 px-2 py-1 rounded opacity-75">
-                            Suggerito: <span className="font-bold">{giocatore.prezzoSuggerito}</span>
+                          <div className="bg-red-50 border border-red-200 rounded-lg p-2 opacity-75 min-w-[120px]">
+                            <div className="text-xs text-red-700 font-medium mb-1">Suggerito:</div>
+                            <div className="flex items-center justify-between">
+                              <input
+                                type="number"
+                                value={getPrezzoSuggerito(giocatore)}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  aggiornaPrezzosuggerito(giocatore, e.target.value);
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                className="w-16 text-sm font-bold text-center bg-white border border-red-300 rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-red-500 focus:border-red-500"
+                                min="1"
+                                max="999"
+                              />
+                              <span className="text-xs font-medium text-red-700">FM</span>
+                            </div>
+                            <div className="text-xs text-red-600 font-medium text-center mt-1">
+                              ({calcolaPercentuale(getPrezzoSuggerito(giocatore))}% budget)
+                            </div>
                           </div>
                           <button
                             onClick={(e) => {
@@ -1697,8 +2263,8 @@ function App() {
         </div>
 
         {/* Divisore draggabile */}
-        <div 
-          className="w-1 bg-gray-300 hover:bg-blue-400 cursor-col-resize transition-colors"
+        <div
+          className={`${isMobile ? 'hidden' : 'w-1 bg-gray-300 hover:bg-blue-400 cursor-col-resize transition-colors'}`}
           onMouseDown={(e) => {
             const startX = e.clientX;
             const startWidth = larghezzaListone;
@@ -1720,137 +2286,265 @@ function App() {
         />
         
         {/* Sezione Rosa + Moduli + Suggerimenti (dinamica %) */}
-        <div className="flex" style={{ width: `${100 - larghezzaListone}%` }}>
+        <div className="flex" style={{ width: isMobile ? '100%' : `${100 - larghezzaListone}%` }}>
           {/* Rosa */}
-          <div className="flex flex-col bg-white border-r border-gray-200" style={{ width: `${larghezzaRosa}%` }}>
-            <div className="p-4 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">ROSA ({rosa.length})</h2>
-              <div className="text-sm text-gray-500 mt-1">{FORMULA_ROSA}</div>
+          <div className="flex flex-col bg-white border-r border-gray-200" style={{ width: isMobile ? '100%' : `${larghezzaRosa}%` }}>
+            <div className="p-2 sm:p-4 border-b border-gray-200">
+              <h2 className="text-base sm:text-lg font-semibold text-gray-900">ROSA ({rosa.length}/32)</h2>
+              <div className="text-xs sm:text-sm text-gray-500 mt-1 hidden sm:block">{FORMULA_ROSA}</div>
             </div>
             
             <div className="flex-1 overflow-y-auto">
-              {Object.entries(rosaNecessaria.linee).map(([linea, necessari]) => {
-                const attuali = conteggioRosa.linee[linea] || 0;
-                const percentuale = Math.min((attuali / necessari) * 100, 100);
+              <div className="p-2 sm:p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <h3 className="text-xs sm:text-sm font-semibold text-blue-800 mb-2 sm:mb-3 flex items-center">
+                  <span className="bg-blue-600 text-white px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-xs mr-1 sm:mr-2">FORMULA</span>
+                  <span className="hidden sm:inline">Ruoli Richiesti per </span>{moduliTarget[0] || 'Modulo'}
+                </h3>
                 
-                return (
-                  <div key={linea} className="p-3 border-b border-gray-100">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-gray-700 capitalize">{linea}</span>
-                      <span className={`text-sm font-bold ${attuali >= necessari ? 'text-green-600' : 'text-red-600'}`}>
-                        {attuali}/{necessari}
-                      </span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div 
-                        className={`h-2 rounded-full ${
-                          attuali >= necessari ? 'bg-green-500' : 'bg-red-500'
-                        }`}
-                        style={{ width: `${percentuale}%` }}
-                      ></div>
-                    </div>
+                {draggedPlayer && (
+                  <div className="bg-blue-100 border border-blue-300 rounded-lg p-2 mb-3 text-xs text-blue-800 flex items-center space-x-2">
+                    <span>🎯</span>
+                    <span>Trascina <strong>{draggedPlayer.nome}</strong> nella sezione del ruolo desiderato</span>
                   </div>
-                );
-              })}
-
-              <div className="p-3">
-                <h3 className="text-sm font-semibold text-gray-700 mb-2">Ruoli Specifici Richiesti:</h3>
-                <div className="grid grid-cols-2 gap-1 mb-4">
-                  {Object.entries(rosaNecessaria.ruoli).map(([ruolo, necessari]) => {
-                    const attuali = conteggioRosa.ruoli[ruolo] || 0;
-                    const ruoloInfo = RUOLI_MANTRA[ruolo];
-                    
-                    return (
-                      <div key={ruolo} className="flex items-center justify-between text-xs">
-                        <div className="flex items-center space-x-1">
-                          {ruoloInfo && (
-                            <span className={`px-1 py-0.5 text-xs font-bold text-white rounded ${ruoloInfo.colore}`}>
-                              {ruoloInfo.sigla}
-                            </span>
-                          )}
-                        </div>
-                        <span className={`font-bold ${attuali >= necessari ? 'text-green-600' : 'text-red-600'}`}>
-                          {attuali}/{necessari}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-                
-                {Object.keys(rosaNecessaria.offensivi).length > 0 && (
-                  <>
-                    <h3 className="text-sm font-semibold text-purple-700 mb-2">Requisiti Minimi Offensivi:</h3>
-                    <div className="grid grid-cols-1 gap-1 mb-4">
-                      {Object.entries(rosaNecessaria.offensivi).map(([ruolo, necessari]) => {
-                        const attuali = conteggioRosa.ruoli[ruolo] || 0;
-                        const ruoloInfo = RUOLI_MANTRA[ruolo];
-                        const ruoloDifensivo = Object.keys(RUOLO_OFFENSIVO_MAP).find(k => RUOLO_OFFENSIVO_MAP[k] === ruolo);
-                        
-                        return (
-                          <div key={ruolo} className="bg-purple-50 p-2 rounded text-xs">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center space-x-1">
-                                {ruoloInfo && (
-                                  <span className={`px-1 py-0.5 text-xs font-bold text-white rounded ${ruoloInfo.colore}`}>
-                                    {ruoloInfo.sigla}
-                                  </span>
-                                )}
-                                <span className="text-purple-700 font-medium">almeno:</span>
-                              </div>
-                              <span className={`font-bold ${attuali >= necessari ? 'text-green-600' : 'text-purple-600'}`}>
-                                {attuali}/{necessari}
-                              </span>
-                            </div>
-                            <div className="text-purple-600 text-xs mt-1">
-                              (da {RUOLI_MANTRA[ruoloDifensivo]?.sigla} intercambiabili)
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </>
                 )}
                 
-                
-                <h3 className="text-sm font-semibold text-gray-700 mb-2">Giocatori in Rosa:</h3>
-                {rosa.map(giocatore => {
-                  const ruolo = RUOLI_MANTRA[giocatore.ruolo];
-                  return (
-                    <div
-                      key={giocatore.id}
-                      className="flex items-center justify-between py-1 px-2 hover:bg-gray-50 rounded cursor-pointer"
-                      onClick={() => rimuoviGiocatore(giocatore)}
-                    >
-                      <div className="flex items-center space-x-2">
-                        <div className="flex items-center space-x-1">
-                          {getTuttiRuoli(giocatore.ruoloCompleto).map((ruoloSingolo, index) => {
-                            const ruoloInfo = RUOLI_MANTRA[ruoloSingolo];
-                            if (!ruoloInfo) return null;
-                            return (
-                              <span 
-                                key={index}
-                                className={`px-1 py-0.5 text-xs font-bold text-white rounded ${ruoloInfo.colore}`}
-                              >
-                                {ruoloInfo.sigla}
+                <div className="space-y-2">
+                  {Object.entries(rosaNecessaria.ruoli)
+                    .sort(([ruoloA], [ruoloB]) => {
+                      // Ordina per linea: Por, Difesa, Centro, Trequarti, Attacco  
+                      const getOrdineLinea = (ruolo) => {
+                        if (ruolo === 'Por') return 1;
+                        const info = RUOLI_MANTRA[ruolo];
+                        if (!info) return 999;
+                        if (info.linea === 'difesa') return 2;
+                        if (info.linea === 'centrocampo') return 3;
+                        if (info.linea === 'trequarti') return 4;
+                        if (info.linea === 'attacco') return 5;
+                        return 6;
+                      };
+                      return getOrdineLinea(ruoloA) - getOrdineLinea(ruoloB);
+                    })
+                    .map(([ruolo, necessari]) => {
+                      const attuali = conteggioRosa.ruoli[ruolo] || 0;
+                      const ruoloInfo = RUOLI_MANTRA[ruolo];
+                      const config = CONFIGURAZIONE_MODULI[moduliTarget[0]];
+                      const slotModulo = config?.ruoli[ruolo] || 0;
+                      
+                      const isCompleto = attuali >= necessari;
+                      const percentuale = Math.min((attuali / necessari) * 100, 100);
+                      
+                      return (
+                        <div 
+                          key={ruolo} 
+                          className={`p-3 rounded-lg border-l-4 transition-all duration-200 ${
+                            isCompleto ? 'bg-green-50 border-green-400' : 'bg-red-50 border-red-400'
+                          } ${
+                            dragOverRole === ruolo 
+                              ? 'bg-blue-100 border-blue-500 ring-2 ring-blue-300' 
+                              : ''
+                          }`}
+                          onDragOver={(e) => handleRoleDragOver(e, ruolo)}
+                          onDragEnter={(e) => handleRoleDragEnter(e, ruolo)}
+                          onDragLeave={handleRoleDragLeave}
+                          onDrop={(e) => handleRoleDrop(e, ruolo)}
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center space-x-2">
+                              {ruoloInfo && (
+                                <span className={`px-2 py-1 text-sm font-bold text-white rounded-md ${ruoloInfo.colore}`}>
+                                  {ruoloInfo.sigla}
+                                </span>
+                              )}
+                              <div className="text-sm">
+                                <div className="font-medium text-gray-800">
+                                  {ruolo === 'Por' ? 'Portieri (fisso)' : `${slotModulo} slot × 2 + 1`}
+                                </div>
+                                {ruolo !== 'Por' && (
+                                  <div className="text-xs text-gray-500">
+                                    ({slotModulo} × 2 + 1 = {necessari})
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <span className={`text-lg font-bold ${isCompleto ? 'text-green-600' : 'text-red-600'}`}>
+                                {attuali}/{necessari}
                               </span>
-                            );
-                          })}
+                              <div className="text-xs text-gray-500">
+                                {Math.round(percentuale)}% completo
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* Barra di progresso */}
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div 
+                              className={`h-2 rounded-full transition-all ${
+                                isCompleto ? 'bg-green-500' : 'bg-red-500'
+                              }`}
+                              style={{ width: `${Math.min(percentuale, 100)}%` }}
+                            ></div>
+                          </div>
+                          
+                          {attuali > necessari && (
+                            <div className="mt-1 text-xs text-blue-600 font-medium">
+                              +{attuali - necessari} extra (ottimo per rotazioni!)
+                            </div>
+                          )}
+                          
+                          {/* Giocatori per questo ruolo */}
+                          <div className="mt-2">
+                            <div className="flex flex-wrap gap-1">
+                              {getGiocatoriPerRuolo()[ruolo]?.filter((giocatore, index, array) => {
+                                // Evita duplicati se giocatore non ha assegnazione specifica
+                                const ruoloAssegnato = getRuoloAssegnato(giocatore);
+                                if (!ruoloAssegnato) {
+                                  // Se il giocatore non ha assegnazione, mostralo solo nel primo ruolo che può ricoprire
+                                  const ruoliGiocatore = getTuttiRuoli(giocatore.ruoloCompleto);
+                                  return ruoliGiocatore[0] === ruolo;
+                                }
+                                return ruoloAssegnato === ruolo;
+                              }).map(giocatore => {
+                                const ruoloAssegnato = getRuoloAssegnato(giocatore);
+                                const ruoliDisponibili = getTuttiRuoli(giocatore.ruoloCompleto);
+                                const prezzo = prezziPagati[giocatore.id] || getPrezzoSuggerito(giocatore);
+                                
+                                return (
+                                  <div
+                                    key={`${giocatore.id}-${ruolo}`}
+                                    draggable={ruoliDisponibili.length > 1}
+                                    onDragStart={(e) => handlePlayerDragStart(e, giocatore)}
+                                    onDragEnd={handlePlayerDragEnd}
+                                    className={`bg-white border border-gray-300 rounded p-1.5 text-xs transition-all duration-200 ${
+                                      ruoliDisponibili.length > 1 
+                                        ? 'cursor-move hover:shadow-md' 
+                                        : 'cursor-default'
+                                    } ${
+                                      draggedPlayer?.id === giocatore.id 
+                                        ? 'opacity-50 transform rotate-1' 
+                                        : 'hover:bg-gray-50'
+                                    }`}
+                                  >
+                                    <div className="flex items-center space-x-1">
+                                      <div className={`w-3 h-3 rounded-full ${RUOLI_MANTRA[ruolo]?.colore || 'bg-gray-500'} flex-shrink-0`}></div>
+                                      <span className="font-medium text-gray-900 truncate max-w-16">{giocatore.nome}</span>
+                                      <span className="text-gray-500">{prezzo}FM</span>
+                                      {ruoliDisponibili.length > 1 && (
+                                        <span className="text-gray-400 text-xs">🔄</span>
+                                      )}
+                                    </div>
+                                    {ruoloAssegnato && (
+                                      <div className="text-xs text-blue-600 mt-0.5 flex items-center">
+                                        📌 Assegnato
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            rimuoviAssegnazioneRuolo(giocatore);
+                                          }}
+                                          className="ml-1 text-red-500 hover:text-red-700"
+                                          title="Rimuovi assegnazione"
+                                        >
+                                          ✕
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              }) || []}
+                            </div>
+                            
+                            {/* Messaggio se nessun giocatore */}
+                            {(!getGiocatoriPerRuolo()[ruolo] || getGiocatoriPerRuolo()[ruolo].length === 0) && (
+                              <div className="text-xs text-gray-400 italic py-1">
+                                Nessun giocatore per questo ruolo
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <span className="text-sm text-gray-900">{giocatore.nome}</span>
+                      );
+                    })}
+                </div>
+                
+                <div className="mt-3 sm:mt-4">
+                  <h3 className="text-xs sm:text-sm font-semibold text-gray-700 mb-2 sm:mb-3">Giocatori in Rosa ({rosa.length}/32):</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 sm:gap-2">
+                    {rosa.length === 0 ? (
+                      <div className="col-span-1 sm:col-span-2 text-center py-6 sm:py-8 text-gray-500">
+                        <Users className="w-8 sm:w-12 h-8 sm:h-12 mx-auto mb-2 opacity-50" />
+                        <p className="text-xs sm:text-sm">Nessun giocatore acquistato</p>
                       </div>
-                      <div className="text-sm font-bold text-blue-600">
-                        {prezziPagati[giocatore.id] || giocatore.prezzoSuggerito || 1}
-                      </div>
-                    </div>
-                  );
-                })}
+                    ) : (
+                      rosa
+                        .sort((a, b) => {
+                          // Ordina per linea (portiere, difesa, centrocampo, attacco) e poi per ruolo
+                          const getOrdineLinea = (ruolo) => {
+                            if (ruolo === 'Por') return 1;
+                            if (['Dc', 'Dd', 'Ds', 'Ed', 'Es'].includes(ruolo)) return 2;
+                            if (['M', 'C', 'T', 'Cc', 'W', 'E'].includes(ruolo)) return 3;
+                            if (['A', 'Pc'].includes(ruolo)) return 4;
+                            return 5;
+                          };
+                          
+                          const lineaA = getOrdineLinea(a.ruolo);
+                          const lineaB = getOrdineLinea(b.ruolo);
+                          
+                          if (lineaA !== lineaB) return lineaA - lineaB;
+                          
+                          // Se stessa linea, ordina per ruolo alfabeticamente
+                          return a.ruolo.localeCompare(b.ruolo);
+                        })
+                        .map(giocatore => {
+                          const prezzo = prezziPagati[giocatore.id] || getPrezzoSuggerito(giocatore);
+                          const percentuale = calcolaPercentuale(prezzo);
+                          
+                          return (
+                            <div
+                              key={giocatore.id}
+                              className="bg-white border border-gray-200 rounded-lg p-1.5 sm:p-2 hover:bg-gray-50 cursor-pointer transition-colors"
+                              onClick={() => rimuoviGiocatore(giocatore)}
+                              title="Clicca per rimuovere dalla rosa"
+                            >
+                              <div className="flex items-center space-x-1 sm:space-x-2 mb-1">
+                                {getTuttiRuoli(giocatore.ruoloCompleto).slice(0, 2).map((ruoloSingolo, index) => {
+                                  const ruoloInfo = RUOLI_MANTRA[ruoloSingolo];
+                                  if (!ruoloInfo) return null;
+                                  return (
+                                    <span 
+                                      key={index}
+                                      className={`px-1 py-0.5 text-xs font-bold text-white rounded ${ruoloInfo.colore}`}
+                                    >
+                                      {ruoloInfo.sigla}
+                                    </span>
+                                  );
+                                })}
+                                {getTuttiRuoli(giocatore.ruoloCompleto).length > 2 && (
+                                  <span className="text-xs text-gray-400">+{getTuttiRuoli(giocatore.ruoloCompleto).length - 2}</span>
+                                )}
+                              </div>
+                              <div className="text-xs sm:text-sm font-medium text-gray-900 truncate mb-1">
+                                {giocatore.nome}
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs sm:text-sm font-bold text-blue-600">
+                                  {prezzo} FM
+                                </span>
+                                <span className="text-xs text-gray-500">
+                                  {percentuale}%
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
           {/* Divisore Rosa/Formazione */}
           <div 
-            className="w-1 bg-gray-300 hover:bg-blue-400 cursor-col-resize transition-colors"
+            className={`${isMobile ? 'hidden' : 'w-1 bg-gray-300 hover:bg-blue-400 cursor-col-resize transition-colors'}`}
             onMouseDown={(e) => {
               e.preventDefault();
               const startX = e.clientX;
@@ -1876,9 +2570,9 @@ function App() {
           />
 
           {/* Formazione + Suggerimenti */}
-          <div className="flex-1 flex flex-col bg-white" style={{ height: 'calc(100vh - 200px)' }}>
-            {/* Formazione (80%) */}
-            <div className="h-[80%] flex flex-col border-b border-gray-200 min-h-0">
+          <div className="flex-1 flex flex-col bg-white" style={{ height: isMobile ? 'auto' : 'calc(100vh - 200px)' }}>
+            {/* Formazione (50%) */}
+            <div className="h-[50%] flex flex-col border-b border-gray-200 min-h-0">
               <div className="p-2 border-b border-gray-200 flex-shrink-0">
                 <div className="flex items-center justify-between">
                   <h2 className="text-lg font-semibold text-gray-900">FORMAZIONE</h2>
@@ -1901,7 +2595,7 @@ function App() {
                 </div>
               </div>
               
-              <div className="flex-1 overflow-y-auto min-h-0">
+              <div className="flex-1 overflow-y-auto min-h-0 flex justify-center items-start">
                 {moduliTarget.length > 0 ? (
                   <TacticalFormation 
                     modulo={moduliTarget[0]}
@@ -1918,54 +2612,69 @@ function App() {
               </div>
             </div>
 
-            {/* Suggerimenti (20%) */}
-            <div className="h-[20%] flex flex-col min-h-0">
+            {/* Suggerimenti Intelligenti (50%) */}
+            <div className="h-[50%] flex flex-col min-h-0">
               <div className="p-3 border-b border-gray-200 flex-shrink-0">
-                <h2 className="text-sm font-semibold text-gray-900">SUGGERIMENTI</h2>
+                <h2 className="text-sm font-semibold text-gray-900">SUGGERIMENTI INTELLIGENTI</h2>
               </div>
               
               <div className="flex-1 overflow-y-auto p-2 min-h-0">
-                {suggerimenti.slice(0, 3).map((sug, index) => (
-                  <div key={index} className={`mb-2 p-2 rounded border-l-4 ${
-                    sug.priorita === 'alta' ? 'bg-red-50 border-red-400' :
-                    sug.priorita === 'media' ? 'bg-yellow-50 border-yellow-400' :
-                    'bg-blue-50 border-blue-400'
-                  }`}>
-                    <div className="flex items-start">
-                      <div className={`flex-shrink-0 w-1.5 h-1.5 mt-1.5 rounded-full ${
-                        sug.priorita === 'alta' ? 'bg-red-400' :
-                        sug.priorita === 'media' ? 'bg-yellow-400' :
-                        'bg-blue-400'
-                      }`}></div>
-                      <p className="ml-2 text-xs text-gray-700">{sug.messaggio}</p>
-                    </div>
-                  </div>
-                ))}
-                
-                {suggerimenti.length === 0 && (
-                  <div className="text-center text-gray-500 py-4">
-                    <Users className="w-6 h-6 mx-auto mb-2 opacity-50" />
-                    <p className="text-xs">Rosa bilanciata</p>
-                  </div>
-                )}
-                
-                {suggerimenti.length > 3 && (
-                  <div className="text-center mt-2">
-                    <p className="text-xs text-gray-500">+{suggerimenti.length - 3} altri suggerimenti</p>
-                  </div>
-                )}
+                <SuggerimentiIntelligenti
+                  preferiti={giocatoriPreferitiCompleti}
+                  rosaNecessaria={rosaNecessaria}
+                  conteggioRosa={conteggioRosa}
+                  rosa={rosa}
+                  budget={budget}
+                  noteGiocatori={noteGiocatori}
+                  prezziPagati={prezziPagati}
+                  getPrezzoSuggerito={getPrezzoSuggerito}
+                  calcolaPercentuale={calcolaPercentuale}
+                  onFocusGiocatore={focusGiocatore}
+                  RUOLI_MANTRA={RUOLI_MANTRA}
+                />
               </div>
             </div>
           </div>
         </div>
       </div>
       
-      {/* Modal Statistiche FBRef */}
+      {/* Bottone Scroll to Top */}
+      {showScrollToTop && (
+        <button
+          onClick={() => {
+            const listoneContainer = document.querySelector('.flex-1.overflow-y-auto');
+            if (listoneContainer) {
+              listoneContainer.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+            setShowScrollToTop(false);
+          }}
+          className="fixed bottom-6 right-6 z-50 bg-blue-500 hover:bg-blue-600 text-white p-3 rounded-full shadow-lg transition-all duration-300 hover:scale-110"
+          title="Torna in alto"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+          </svg>
+        </button>
+      )}
+      
+      {/* Sidebar Preferiti */}
+      <SidebarPreferiti
+        preferiti={giocatoriPreferitiCompleti}
+        noteGiocatori={noteGiocatori}
+        onTogglePreferito={toggleGiocatorePreferito}
+        onAggiornaNote={aggiornaNoteGiocatore}
+        onFocusGiocatore={focusGiocatore}
+        isVisible={sidebarPreferitiVisible}
+        onToggleVisibility={() => setSidebarPreferitiVisible(!sidebarPreferitiVisible)}
+      />
+      
+      {/* Modal Statistiche Standard */}
       <PlayerStatsModal 
         isOpen={statsModalOpen}
         onClose={closePlayerStats}
         giocatore={selectedPlayerForStats}
       />
+      
     </div>
   );
 }

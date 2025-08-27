@@ -132,13 +132,13 @@ const TacticalFormation = ({
         </button>
       </div>
 
-      {/* Layout verticale per spazio compatto */}
-      <div className="space-y-3">
-        {/* Campo tattico più piccolo */}
-        <div>
+      {/* Layout orizzontale per ottimizzare lo spazio */}
+      <div className="flex space-x-3">
+        {/* Campo tattico a sinistra */}
+        <div className="flex-shrink-0">
           <div 
             className="relative bg-gradient-to-b from-green-400 to-green-500 rounded-lg overflow-hidden"
-            style={{ aspectRatio: '3/4', height: '280px' }}
+            style={{ aspectRatio: '3/4', height: '300px' }}
           >
             {/* Linee del campo */}
             <div className="absolute inset-0">
@@ -208,13 +208,13 @@ const TacticalFormation = ({
           </div>
         </div>
 
-        {/* Lista giocatori disponibili - layout compatto */}
-        <div>
+        {/* Lista giocatori disponibili a destra */}
+        <div className="flex-1 min-w-0">
           <h4 className="text-xs font-semibold text-gray-700 mb-2 flex items-center">
             <Move size={12} className="mr-1" />
             Giocatori Disponibili ({giocatoriRosa.filter(g => !Object.values(formazioneAssegnata).some(fg => fg?.id === g.id)).length})
           </h4>
-          <div className="grid grid-cols-2 gap-1 max-h-32 overflow-y-auto">
+          <div className="space-y-1 max-h-80 overflow-y-auto">
             {giocatoriRosa
               .filter(giocatore => !Object.values(formazioneAssegnata).some(g => g?.id === giocatore.id))
               .map(giocatore => {
@@ -226,14 +226,17 @@ const TacticalFormation = ({
                     key={giocatore.id}
                     draggable
                     onDragStart={(e) => handleDragStart(e, giocatore)}
-                    className="flex items-center space-x-1 p-1 bg-gray-50 hover:bg-gray-100 rounded text-xs cursor-move transition-colors"
+                    className="flex items-center space-x-2 p-2 bg-gray-50 hover:bg-gray-100 rounded text-xs cursor-move transition-colors border border-gray-200"
                   >
-                    <div className={`w-4 h-4 ${ruoloInfo.colore} rounded-full flex items-center justify-center text-white text-xs font-bold`}>
+                    <div className={`w-5 h-5 ${ruoloInfo.colore} rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0`}>
                       {ruoloInfo.sigla}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-xs font-medium text-gray-900 truncate">
+                      <div className="text-sm font-medium text-gray-900 truncate">
                         {giocatore.nome}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {giocatore.squadra}
                       </div>
                     </div>
                   </div>
@@ -242,7 +245,8 @@ const TacticalFormation = ({
           </div>
           
           {giocatoriRosa.length === 0 && (
-            <div className="text-center text-gray-500 text-xs py-4">
+            <div className="text-center text-gray-500 text-xs py-8">
+              <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
               Nessun giocatore in rosa
             </div>
           )}
