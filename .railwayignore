@@ -14,9 +14,7 @@ index.html
 *.jsx
 *.js
 !railway_app.py
-!requirements-railway.txt
-!nixpacks.toml
-!railway.toml
+!Procfile
 
 # Ignora anche altri file non necessari per backend
 .git/
@@ -26,3 +24,4 @@ index.html
 .vercelignore
 vercel.json
 api/
+backend/
