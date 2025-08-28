@@ -5,6 +5,7 @@ import PlayerStatsModal from './components/PlayerStatsModal.jsx';
 import TacticalFormation from './components/TacticalFormation.jsx';
 import SidebarPreferiti from './components/SidebarPreferiti.jsx';
 import SuggerimentiIntelligenti from './components/SuggerimentiIntelligenti.jsx';
+import FantacalcioStatsModal from './components/FantacalcioStatsModal.jsx';
 
 // Sistema ruoli MANTRA (completo dal file Excel)
 const RUOLI_MANTRA = {
@@ -321,6 +322,10 @@ function App() {
   // Stati per il modal statistiche
   const [statsModalOpen, setStatsModalOpen] = useState(false);
   const [selectedPlayerForStats, setSelectedPlayerForStats] = useState(null);
+  
+  // Stati per il modal statistiche Fantacalcio (FBref)
+  const [fantacalcioStatsModalOpen, setFantacalcioStatsModalOpen] = useState(false);
+  const [selectedPlayerForFantacalcioStats, setSelectedPlayerForFantacalcioStats] = useState(null);
   const [prezziPagati, setPrezziPagati] = useState(() => caricaDaLocalStorage(STORAGE_KEYS.PREZZI_PAGATI, {}));
   const [prezziSuggeriti, setPrezziSuggeriti] = useState(() => caricaDaLocalStorage(STORAGE_KEYS.PREZZI_SUGGERITI, {}));
   const [assegnazioniRuoli, setAssegnazioniRuoli] = useState(() => caricaDaLocalStorage('assegnazioniRuoli', {})); // giocatore.id -> ruolo assegnato
@@ -798,6 +803,17 @@ function App() {
   const openPlayerStats = (giocatore) => {
     setSelectedPlayerForStats(giocatore);
     setStatsModalOpen(true);
+  };
+
+  // Funzioni per gestire il modal statistiche Fantacalcio
+  const openFantacalcioStats = (giocatore) => {
+    setSelectedPlayerForFantacalcioStats(giocatore);
+    setFantacalcioStatsModalOpen(true);
+  };
+
+  const closeFantacalcioStats = () => {
+    setFantacalcioStatsModalOpen(false);
+    setSelectedPlayerForFantacalcioStats(null);
   };
 
   const closePlayerStats = () => {
@@ -2038,16 +2054,18 @@ function App() {
                             >
                               ↩️ Ripristina
                             </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openPlayerStats(giocatore);
-                              }}
-                              className="px-3 py-2 text-sm text-white rounded-md transition-colors shadow-sm font-medium bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
-                              title="📊 Visualizza statistiche giocatore"
-                            >
-📊 Stats
-                            </button>
+                            <div className="flex">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openFantacalcioStats(giocatore);
+                                }}
+                                className="w-full px-3 py-1 text-xs text-white rounded transition-colors shadow-sm font-medium bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
+                                title="📊 Statistiche avanzate FBref per Fantacalcio"
+                              >
+                                📊 Statistiche
+                              </button>
+                            </div>
                           </div>
                         ) : (
                           <div className="flex flex-col space-y-1">
@@ -2088,17 +2106,19 @@ function App() {
                                 </button>
                               )}
                             </div>
-                            {/* Bottone Statistiche */}
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openPlayerStats(giocatore);
-                              }}
-                              className="px-2 py-1.5 text-xs text-white rounded transition-colors shadow-sm font-medium w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
-                              title="📊 Visualizza statistiche giocatore"
-                            >
-📊 Stats
-                            </button>
+                                                        {/* Bottoni Statistiche */}
+                            <div className="flex">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openFantacalcioStats(giocatore);
+                                }}
+                                className="w-full px-3 py-1.5 text-xs text-white rounded transition-colors shadow-sm font-medium bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
+                                title="📊 Statistiche avanzate FBref per Fantacalcio"
+                              >
+                                📊 Statistiche
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -2719,6 +2739,13 @@ function App() {
         isOpen={statsModalOpen}
         onClose={closePlayerStats}
         giocatore={selectedPlayerForStats}
+      />
+
+      {/* Modal Statistiche Fantacalcio FBref */}
+      <FantacalcioStatsModal 
+        isOpen={fantacalcioStatsModalOpen}
+        onClose={closeFantacalcioStats}
+        player={selectedPlayerForFantacalcioStats}
       />
       
     </div>
