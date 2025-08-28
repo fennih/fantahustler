@@ -47,7 +47,6 @@ src/utils/fbref_scraper.py
 src/components/AdvancedFBRefStatsModal.jsx
 src/components/FBRefStatsModal.jsx
 src/data/
-src/services/
 
 # File di documentazione temporanei
 *.md
