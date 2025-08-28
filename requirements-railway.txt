@@ -1,0 +1,9 @@
+Flask==3.0.0
+Flask-Cors==4.0.0
+soccerdata==1.8.7
+pandas==2.1.4
+fuzzywuzzy==0.18.0
+python-Levenshtein==0.23.0
+requests==2.31.0
+lxml==4.9.3
+gunicorn==21.2.0

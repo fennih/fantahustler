@@ -1,0 +1,10 @@
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "pip install -r requirements-railway.txt && python railway_app.py"
+healthcheckPath = "/api/health"
+healthcheckTimeout = 30
+
+[environment]
+PYTHONPATH = "."
