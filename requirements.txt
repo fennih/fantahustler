@@ -1,6 +1,6 @@
 flask==3.0.0
 flask-cors==4.0.0
-soccerdata==1.9.2
+soccerdata==1.8.7
 pandas==2.1.4
 fuzzywuzzy==0.18.0
 python-Levenshtein==0.23.0
