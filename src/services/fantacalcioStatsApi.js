@@ -9,8 +9,10 @@ const VERCEL_API_URL = 'https://fantahustler-jnmi5e208-fennihs-projects.vercel.a
 // Railway backup (per fallback se necessario)
 const RAILWAY_API_URL = 'https://fantahustler-production.up.railway.app/api';
 
+const ORACLE_API_URL = 'http://140.238.175.135/api';
+
 const API_BASE_URL = process.env.NODE_ENV === 'production' 
-  ? RAILWAY_API_URL  // 🎯 RAILWAY PRIMARY - Full FBref Stats & Reliable
+  ? ORACLE_API_URL  // 🎯 ORACLE PRIMARY - quando funzionerà
   : 'http://localhost:5003/api';  // Locale per sviluppo
 
 class FantacalcioStatsApi {
