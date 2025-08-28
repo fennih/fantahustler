@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, TrendingUp, Target, Shield, Zap, Award, AlertCircle, RefreshCw } from 'lucide-react';
-import { fantacalcioStatsApi } from '@services/fantacalcioStatsApi';
+import { fantacalcioStatsApi } from '@services/fantacalcioStatsApi.js';
 
 const FantacalcioStatsModal = ({ 
   isOpen, 
