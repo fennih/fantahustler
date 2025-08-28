@@ -1,0 +1,28 @@
+# Ignora frontend files per Railway (solo backend Python)
+src/
+public/
+dist/
+node_modules/
+package.json
+package-lock.json
+vite.config.js
+postcss.config.js
+tailwind.config.js
+eslint.config.js
+index.html
+*.css
+*.jsx
+*.js
+!railway_app.py
+!requirements-railway.txt
+!nixpacks.toml
+!railway.toml
+
+# Ignora anche altri file non necessari per backend
+.git/
+.vscode/
+*.md
+*.xlsx
+.vercelignore
+vercel.json
+api/

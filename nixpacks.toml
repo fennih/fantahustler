@@ -1,0 +1,11 @@
+[phases.setup]
+nixPkgs = ['python39', 'pip']
+
+[phases.install]
+cmds = ['pip install -r requirements-railway.txt']
+
+[phases.build]
+cmds = ['echo "Backend Python ready"']
+
+[start]
+cmd = 'python railway_app.py'

@@ -2,9 +2,11 @@
 builder = "nixpacks"
 
 [deploy]
-startCommand = "pip install -r requirements-railway.txt && python railway_app.py"
+startCommand = "python railway_app.py"
 healthcheckPath = "/api/health"
 healthcheckTimeout = 30
+restartPolicyType = "on_failure"
 
 [environment]
 PYTHONPATH = "."
+PORT = "$PORT"
