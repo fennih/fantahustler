@@ -10,7 +10,7 @@ const VERCEL_API_URL = 'https://fantahustler-jnmi5e208-fennihs-projects.vercel.a
 const RAILWAY_API_URL = 'https://fantahustler-production.up.railway.app/api';
 
 const API_BASE_URL = process.env.NODE_ENV === 'production' 
-  ? RAILWAY_API_URL  // 🎯 RAILWAY PRIMARY - Full FBref Stats 
+  ? RAILWAY_API_URL  // 🎯 RAILWAY PRIMARY - Full FBref Stats & Reliable
   : 'http://localhost:5003/api';  // Locale per sviluppo
 
 class FantacalcioStatsApi {
