@@ -370,8 +370,8 @@ app = Flask(__name__)
 
 # CORS per permettere chiamate dal frontend Vercel
 CORS(app, origins=[
+    "https://fantahustler-3j9ohv5e0-fennihs-projects.vercel.app",
     "https://fantahustler-8f1tqavmv-fennihs-projects.vercel.app",
-    "https://*.vercel.app",
     "http://localhost:3000",
     "http://localhost:5173"
 ])
