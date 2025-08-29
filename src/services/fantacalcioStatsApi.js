@@ -10,6 +10,7 @@ const VERCEL_API_URL = 'https://fantahustler-jnmi5e208-fennihs-projects.vercel.a
 const RAILWAY_API_URL = 'https://fantahustler-production.up.railway.app/api';
 
 const ORACLE_API_URL = 'https://api.mantra.football/api';
+// Oracle VM IP: 140.238.222.246
 
 const API_BASE_URL = process.env.NODE_ENV === 'production' 
   ? ORACLE_API_URL  // 🎯 ORACLE PRIMARY - quando funzionerà
