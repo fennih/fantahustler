@@ -10,7 +10,7 @@ import time
 import logging
 from pathlib import Path
 from flask import Flask, request, jsonify
-from flask_cors import CORS
+# from flask_cors import CORS  # Rimosso: Nginx gestisce CORS
 from fuzzywuzzy import fuzz
 import pandas as pd
 
@@ -310,11 +310,12 @@ fbref_service = OracleFBrefService()
 
 # Inizializza Flask
 app = Flask(__name__)
-CORS(app, origins=[
-    'http://localhost:3000',
-    'https://fantahustler.vercel.app',
-    'https://fantahustler-*.vercel.app'
-])
+# CORS rimosso - gestito da Nginx per evitare header duplicati
+# CORS(app, origins=[
+#     'http://localhost:3000', 
+#     'https://fantahustler.vercel.app',
+#     'https://fantahustler-*.vercel.app'
+# ])
 
 @app.route('/api/player-stats/<player_name>', methods=['GET'])
 def get_player_stats(player_name):
