@@ -39,15 +39,12 @@ class FantacalcioStatsApi {
       }
 
       console.log(`🔍 Recupero stats per ${playerName} (${teamName || 'squadra auto'})`);
-      console.log(`🎯 API_BASE_URL:`, API_BASE_URL);
-      console.log(`🌍 NODE_ENV:`, process.env.NODE_ENV);
       
       // Costruisci URL
       const url = new URL(`${API_BASE_URL}/player-stats/${encodeURIComponent(playerName)}`);
       if (teamName) {
         url.searchParams.append('team', teamName);
       }
-      console.log(`📞 Chiamata API a:`, url.toString());
 
       const response = await fetch(url, {
         method: 'GET',
@@ -146,40 +143,40 @@ class FantacalcioStatsApi {
         cartelliniRossi: fantacalcio_stats.generale?.cartellini_rossi || 0
       },
 
-      // 🎯 Statistiche avanzate tiro
+      // 🎯 Statistiche avanzate tiro (Oracle API - limitate)
       shootingStats: {
-        expectedGoals: fantacalcio_stats.tiro?.expected_goals || 0,
-        expectedGoalsPer90: fantacalcio_stats.tiro?.tiri_per_90min || 0,
-        tiriTotali: fantacalcio_stats.tiro?.tiri_totali || 0,
-        tiriInPorta: fantacalcio_stats.tiro?.tiri_in_porta || 0,
-        precisioneTiro: fantacalcio_stats.tiro?.precisione_tiro || 0,
-        golVsExpected: fantacalcio_stats.tiro?.gol_expected_goals || 0
+        expectedGoals: 0, // TODO: Non disponibile in Oracle API
+        expectedGoalsPer90: 0, // TODO: Non disponibile in Oracle API  
+        tiriTotali: 0, // TODO: Non disponibile in Oracle API
+        tiriInPorta: 0, // TODO: Non disponibile in Oracle API
+        precisioneTiro: 0, // TODO: Non disponibile in Oracle API
+        golVsExpected: 0 // TODO: Non disponibile in Oracle API
       },
 
-      // 🅰️ Statistiche passaggi e creatività
+      // 🅰️ Statistiche passaggi e creatività (Oracle API)
       passingStats: {
-        expectedAssists: fantacalcio_stats.passaggi?.assist_attesi || 0,
-        expectedAssistsPer90: fantacalcio_stats.passaggi?.passaggi_per_90min || 0,
-        keyPasses: fantacalcio_stats.passaggi?.passaggi_chiave || 0,
-        passaggiProgressivi: fantacalcio_stats.passaggi?.passaggi_totali || 0,
-        passaggiArea: fantacalcio_stats.passaggi?.passaggi_riusciti || 0,
-        percentualePassaggi: fantacalcio_stats.passaggi?.precisione_passaggi || 0
+        expectedAssists: 0, // TODO: Non disponibile in Oracle API
+        expectedAssistsPer90: 0, // TODO: Non disponibile in Oracle API
+        keyPasses: 0, // TODO: Non disponibile in Oracle API
+        passaggiProgressivi: fantacalcio_stats.passaggi?.passaggi_totali || 0, // ✅ Disponibile
+        passaggiArea: 0, // TODO: Non disponibile in Oracle API
+        percentualePassaggi: fantacalcio_stats.passaggi?.precisione_passaggi || 0 // ✅ Disponibile
       },
 
-      // 🛡️ Statistiche difensive
+      // 🛡️ Statistiche difensive (Oracle API - limitate)  
       defenseStats: {
-        tackle: fantacalcio_stats.difesa?.tackle || 0,
-        intercetti: fantacalcio_stats.difesa?.intercetti || 0,
-        tacklePer90: fantacalcio_stats.difesa?.tackle_per_90min || 0,
-        intercettiPer90: fantacalcio_stats.difesa?.percentuale_duelli_aerei || 0
+        tackle: 0, // TODO: Non disponibile in Oracle API
+        intercetti: 0, // TODO: Non disponibile in Oracle API
+        tacklePer90: 0, // TODO: Non disponibile in Oracle API
+        intercettiPer90: 0 // TODO: Non disponibile in Oracle API
       },
 
-      // ⚽ Statistiche possesso
+      // ⚽ Statistiche possesso (Oracle API - limitate)
       possessionStats: {
-        tocchi: fantacalcio_stats.possesso?.tocchi || 0,
-        tocchiArea: fantacalcio_stats.possesso?.tocchi_area_rigore || 0,
-        dribblingRiusciti: fantacalcio_stats.possesso?.dribbling_riusciti || 0,
-        percentualeDribbling: fantacalcio_stats.possesso?.percentuale_dribbling || 0
+        tocchi: 0, // TODO: Non disponibile in Oracle API
+        tocchiArea: 0, // TODO: Non disponibile in Oracle API
+        dribblingRiusciti: 0, // TODO: Non disponibile in Oracle API
+        percentualeDribbling: 0 // TODO: Non disponibile in Oracle API
       },
 
       // 🥅 Statistiche portiere (se disponibili)
