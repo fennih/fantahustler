@@ -39,12 +39,15 @@ class FantacalcioStatsApi {
       }
 
       console.log(`🔍 Recupero stats per ${playerName} (${teamName || 'squadra auto'})`);
+      console.log(`🎯 API_BASE_URL:`, API_BASE_URL);
+      console.log(`🌍 NODE_ENV:`, process.env.NODE_ENV);
       
       // Costruisci URL
       const url = new URL(`${API_BASE_URL}/player-stats/${encodeURIComponent(playerName)}`);
       if (teamName) {
         url.searchParams.append('team', teamName);
       }
+      console.log(`📞 Chiamata API a:`, url.toString());
 
       const response = await fetch(url, {
         method: 'GET',
